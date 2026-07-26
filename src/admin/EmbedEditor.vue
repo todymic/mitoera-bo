@@ -4,7 +4,8 @@ import { auth } from './services/auth.js';
 import PlanEditor from './components/PlanEditor.vue';
 import { adminApi } from './services/adminApi.js';
 
-const planId = new URLSearchParams(window.location.search).get('planId');
+const planId  = new URLSearchParams(window.location.search).get('planId');
+const eventId = new URLSearchParams(window.location.search).get('eventId') || null;
 
 const ready = ref(false);
 const error = ref('');
@@ -32,6 +33,7 @@ onMounted(async () => {
     <PlanEditor
       v-else
       :venue-id="planId"
+      :event-id="eventId"
       :plan-status="plan?.status || 'draft'"
       :plan-pending-changes="plan?.pendingChanges || false"
       :plan-name="plan?.name || ''"

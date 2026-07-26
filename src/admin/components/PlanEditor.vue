@@ -7,6 +7,7 @@ import PreviewPlan from './PreviewPlan.vue';
 
 const props = defineProps({
   venueId: { type: String, required: true },
+  eventId: { type: String, default: null },
   planStatus: { type: String, default: 'draft' },
   planPendingChanges: { type: Boolean, default: false },
   planName: { type: String, default: '' },
@@ -27,12 +28,17 @@ const selected = ref(null);
 const multiSelected = reactive(new Set());
 const bulkCategoryChoice = ref('');
 
+const deleteBlockMessage = ref('');
+
 const canvasRef = ref(null);
 const canvasContainerRef = ref(null);
 const showProps = ref(false);
 const showInfoTooltip = ref(false);
 // Auto-ouvre le panneau propriétés sur mobile quand un élément est sélectionné
-watch(selected, (v) => { if (v && window.innerWidth < 1024) showProps.value = true; });
+watch(selected, (v) => {
+  deleteBlockMessage.value = '';
+  if (v && window.innerWidth < 1024) showProps.value = true;
+});
 
 // ---- Zoom + Pan (translate libre) ----
 const ZOOM_MIN = 0.1;
@@ -949,7 +955,40 @@ function resetFreeZone() {
   scheduleSave();
 }
 
+function sectionPrefix(item) {
+  return item.section || item.label || item.id;
+}
+
+async function checkBookedSeats(prefix) {
+  if (!props.eventId) return [];
+  try {
+    const seats = await adminApi.getEventSeats(props.eventId);
+    const list = Array.isArray(seats) ? seats : (seats.seats || []);
+    return list.filter(s =>
+      (s.status === 'booked' || s.status === 'hold') &&
+      (s.seatKey || '').startsWith(prefix + '-')
+    );
+  } catch (_) { return []; }
+}
+
 async function removeSelected() {
+  deleteBlockMessage.value = '';
+
+  let prefix = null;
+  if (selectedSeatRow.value)    prefix = sectionPrefix(selectedSeatRow.value);
+  else if (selectedTableZone.value)   prefix = sectionPrefix(selectedTableZone.value);
+  else if (selectedTableSection.value) prefix = sectionPrefix(selectedTableSection.value);
+
+  if (prefix) {
+    const blocked = await checkBookedSeats(prefix);
+    if (blocked.length > 0) {
+      const statuses = [...new Set(blocked.map(s => s.status))];
+      const label = statuses.includes('booked') ? 'réservés' : 'en attente';
+      deleteBlockMessage.value = `Cette section contient ${blocked.length} siège(s) ${label}. Libérez-les avant de supprimer la section.`;
+      return;
+    }
+  }
+
   if (selectedZone.value) {
     const z = selectedZone.value;
     await adminApi.deleteZone(z.id, props.venueId);
@@ -1853,6 +1892,15 @@ async function saveAll() {
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
           </svg>
         </button>
+      </div>
+
+      <!-- Blocked deletion warning -->
+      <div v-if="deleteBlockMessage" class="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <p class="font-semibold mb-1">⚠ Suppression impossible</p>
+        <p>{{ deleteBlockMessage }}</p>
+        <p class="mt-2 text-xs text-amber-700">
+          Allez dans <strong>Gestion des statuts</strong> pour libérer les sièges avant de supprimer cette section.
+        </p>
       </div>
 
       <div v-if="!selected && multiSelected.size === 0" class="text-sm text-gray-400 py-6 text-center">
