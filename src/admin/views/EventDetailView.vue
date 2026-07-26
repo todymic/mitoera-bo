@@ -230,8 +230,12 @@ async function applyStatus(status) {
   try {
     await adminApi.bulkUpdateEventSeats(eventId.value, keys, status);
     eventDetail.value = await adminApi.getEvent(eventId.value);
-    // Ré-applique les hold Mercure écrasés par le rechargement DB
-    if (holdSnapshot.length) applyChanges(holdSnapshot);
+    // Ré-applique uniquement les hold Mercure-only (DB dit "available" = pas en DB)
+    // Les hold réels en DB sont déjà corrects après rechargement, on ne les écrase pas
+    const mercureOnlyHolds = holdSnapshot.filter(
+      ({ seatKey }) => (seatStatusMap.value[seatKey] || 'available') === 'available'
+    );
+    if (mercureOnlyHolds.length) applyChanges(mercureOnlyHolds);
     selectedSeats.value = new Set();
   } finally { updating.value = false; }
 }
