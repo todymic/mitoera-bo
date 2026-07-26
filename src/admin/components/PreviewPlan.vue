@@ -16,19 +16,30 @@ const props = defineProps({
 function tableZoneSize(t) {
   return (t.tableSize || 30) + 2 * (t.seatSize || 15) + 16;
 }
+const TS_PAD = 4;
 function tableSectionUnitSize(ts) {
   return (ts.tableSize || 30) + 2 * (ts.seatSize || 15) + 16;
 }
 function tableSectionWidth(ts) {
   const unit = tableSectionUnitSize(ts);
-  return (ts.tableCount || 3) * unit + ((ts.tableCount || 3) - 1) * (ts.tableSpacing || 20);
+  return (ts.tableCount || 3) * unit + ((ts.tableCount || 3) - 1) * (ts.tableSpacing ?? 2) + 2 * TS_PAD;
+}
+function tableSectionHeight(ts) {
+  const rows = ts.tableRows || 1;
+  const unit = tableSectionUnitSize(ts);
+  return rows * unit + (rows - 1) * (ts.tableSpacing ?? 2) + 2 * TS_PAD;
 }
 function buildTableSectionSeats(ts) {
   const section = ts.section || ts.label || ts.id;
   const disabled = ts.disabledSeats || [];
+  const deleted  = ts.deletedSeats  || [];
+  const totalTables = (ts.tableCount || 3) * (ts.tableRows || 1);
   const seats = [];
-  for (let ti = 0; ti < (ts.tableCount || 3); ti++) {
+  for (let ti = 0; ti < totalTables; ti++) {
     for (let si = 0; si < (ts.seatsPerTable || 6); si++) {
+      const posKey = `${ti}-${si}`;
+      const isDeleted  = deleted.includes(posKey);
+      const isDisabled = !isDeleted && disabled.includes(posKey);
       seats.push({
         tableIndex: ti, seatIndex: si,
         id: `${section}-${ti + 1}-${si + 1}`,
@@ -36,7 +47,7 @@ function buildTableSectionSeats(ts) {
         rowLabel: `T${ti + 1}`, colLabel: String(si + 1),
         section,
         categoryId: ts.categoryId,
-        status: disabled.includes(`${ti}-${si}`) ? 'disabled' : 'available',
+        status: isDeleted ? 'deleted' : isDisabled ? 'disabled' : 'available',
       });
     }
   }
@@ -58,9 +69,13 @@ function buildTableSeats(t) {
   }));
 }
 
-// ---- Tooltip / seat info ----
-const hoveredSeat  = ref(null);
-const selectedSeat = ref(null);
+// ---- Tooltip hover ----
+const hoveredSeat = ref(null);
+function onSeatHover(ev, row, seat) {
+  if (seat.status === 'disabled') { hoveredSeat.value = null; return; }
+  hoveredSeat.value = { seat, row, x: ev.clientX, y: ev.clientY };
+}
+function onSeatLeave() { hoveredSeat.value = null; }
 
 function catById(id) {
   return props.categories.find((c) => c.id === id) || { color: '#999999', name: '—' };
@@ -69,11 +84,14 @@ function catById(id) {
 function buildSeats(row) {
   const seats = [];
   const disabled = row.disabledSeats || [];
+  const deleted  = row.deletedSeats  || [];
   const overrides = row.categoryOverrides || {};
   const section = row.section || row.label || row.id;
   for (let r = 0; r < row.rows; r++) {
     for (let c = 0; c < row.cols; c++) {
       const posKey = `${r}-${c}`;
+      const isDeleted  = deleted.includes(posKey);
+      const isDisabled = !isDeleted && disabled.includes(posKey);
       const rowLabel = computeAxisLabel(r, row.rows, row.rowFormat, row.rowDirection);
       const colLabel = computeAxisLabel(c, row.cols, row.colFormat, row.colDirection);
       seats.push({
@@ -82,7 +100,7 @@ function buildSeats(row) {
         label:    computeSeatLabel(r, c, row.rows, row.cols, row),
         rowLabel, colLabel, section,
         categoryId: overrides[posKey] || row.categoryId,
-        status: disabled.includes(posKey) ? 'disabled' : 'available',
+        status: isDeleted ? 'deleted' : isDisabled ? 'disabled' : 'available',
       });
     }
   }
@@ -97,7 +115,7 @@ const canvasWidth = computed(() => {
   for (const r of props.seatRows)  max = Math.max(max, (r.left || 0) + (r.cols || 1) * ((r.shape === 'rounded' ? (r.seatSize || 22) * 1.5 : (r.seatSize || 22)) + 4) + 28 + CANVAS_PAD);
   for (const f of props.freeZones) max = Math.max(max, (f.left || 0) + (f.width || 100) + CANVAS_PAD);
   for (const t of props.tableZones) max = Math.max(max, (t.left || 0) + tableZoneSize(t) + CANVAS_PAD);
-  for (const ts of props.tableSections) max = Math.max(max, (ts.left || 0) + tableSectionWidth(ts) + CANVAS_PAD);
+  for (const ts of props.tableSections) max = Math.max(max, (ts.left || 0) + tableSectionWidth(ts) + CANVAS_PAD); // width already includes TS_PAD
   return max;
 });
 const canvasHeight = computed(() => {
@@ -106,7 +124,7 @@ const canvasHeight = computed(() => {
   for (const r of props.seatRows)  max = Math.max(max, (r.top || 0) + (r.rows || 1) * ((r.seatSize || 22) + 4) + 30 + CANVAS_PAD);
   for (const f of props.freeZones) max = Math.max(max, (f.top || 0) + (f.height || 50) + CANVAS_PAD);
   for (const t of props.tableZones) max = Math.max(max, (t.top || 0) + tableZoneSize(t) + CANVAS_PAD);
-  for (const ts of props.tableSections) max = Math.max(max, (ts.top || 0) + tableSectionUnitSize(ts) + 24 + CANVAS_PAD);
+  for (const ts of props.tableSections) max = Math.max(max, (ts.top || 0) + tableSectionHeight(ts) + CANVAS_PAD); // height includes tableRows
   return max;
 });
 
@@ -145,7 +163,7 @@ function setZoom(next) {
 }
 function zoomIn()    { setZoom(zoom.value + ZOOM_STEP); }
 function zoomOut()   { setZoom(zoom.value - ZOOM_STEP); }
-function zoomReset() { zoom.value = 1; panX.value = 40; panY.value = 40; updateViewport(); }
+function zoomReset() { fitToView(); }
 
 function onWheel(ev) {
   ev.preventDefault();
@@ -194,20 +212,85 @@ function navigateTo({ x, y }) {
   updateViewport();
 }
 
-// ---- Seat interactions ----
-function onSeatHover(ev, row, seat) {
-  if (seat.status === 'disabled') { hoveredSeat.value = null; return; }
-  hoveredSeat.value = { seat, row, x: ev.clientX, y: ev.clientY };
-}
-function onSeatLeave() { hoveredSeat.value = null; }
-function onSeatClick(row, seat) {
-  if (seat.status === 'disabled') return;
-  if (selectedSeat.value?.seat.id === seat.id) { selectedSeat.value = null; return; }
-  selectedSeat.value = { seat, row };
+// Seat interactions disabled — preview is display-only
+
+const LOD_THRESHOLD = 0.5;
+const isLod = computed(() => zoom.value < LOD_THRESHOLD);
+
+function contentBounds() {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const add = (l, t, w, h) => {
+    minX = Math.min(minX, l); minY = Math.min(minY, t);
+    maxX = Math.max(maxX, l + w); maxY = Math.max(maxY, t + h);
+  };
+  for (const z  of props.zones)         add(z.left||0, z.top||0, z.width||200, z.height||70);
+  for (const r  of props.seatRows)      add(r.left||0, r.top||0, (r.cols||1)*((r.seatSize||22)+4)+28, (r.rows||1)*((r.seatSize||22)+4)+30);
+  for (const f  of props.freeZones)     add(f.left||0, f.top||0, f.width||100, f.height||50);
+  for (const t  of props.tableZones)    add(t.left||0, t.top||0, tableZoneSize(t), tableZoneSize(t));
+  for (const ts of props.tableSections) add(ts.left||0, ts.top||0, tableSectionWidth(ts), tableSectionHeight(ts));
+  if (minX === Infinity) return null;
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 }
 
-onMounted(() => { nextTick(updateViewport); });
+function fitToView() {
+  const el = viewportEl.value;
+  if (!el) return;
+  const b = contentBounds();
+  if (!b) return;
+  const pad = 32;
+  const vw = el.clientWidth;
+  const vh = el.clientHeight;
+  const z = Math.min((vw - pad * 2) / b.w, (vh - pad * 2) / b.h, 1);
+  zoom.value = Math.max(ZOOM_MIN, z);
+  panX.value = (vw - b.w * zoom.value) / 2 - b.x * zoom.value;
+  panY.value = (vh - b.h * zoom.value) / 2 - b.y * zoom.value;
+  updateViewport();
+}
+
+let _animRaf = null;
+function zoomIntoSection(ev) {
+  if (!isLod.value) return;
+  const el = viewportEl.value;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const worldX = (ev.clientX - rect.left - panX.value) / zoom.value;
+  const worldY = (ev.clientY - rect.top  - panY.value) / zoom.value;
+  const targetZoom = Math.min(1, zoom.value * 3);
+  const targetPanX = el.clientWidth  / 2 - worldX * targetZoom;
+  const targetPanY = el.clientHeight / 2 - worldY * targetZoom;
+
+  const startZoom = zoom.value;
+  const startPanX = panX.value;
+  const startPanY = panY.value;
+  const duration = 400; // ms
+  const startTime = performance.now();
+
+  if (_animRaf) cancelAnimationFrame(_animRaf);
+
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function step(now) {
+    const t = Math.min(1, (now - startTime) / duration);
+    const e = easeInOutCubic(t);
+    zoom.value = startZoom + (targetZoom - startZoom) * e;
+    panX.value = startPanX + (targetPanX - startPanX) * e;
+    panY.value = startPanY + (targetPanY - startPanY) * e;
+    updateViewport();
+    if (t < 1) _animRaf = requestAnimationFrame(step);
+  }
+
+  _animRaf = requestAnimationFrame(step);
+}
+
+onMounted(() => { nextTick(fitToView); });
 watch(zoom, () => nextTick(updateViewport));
+watch(
+  [() => props.zones, () => props.seatRows, () => props.freeZones, () => props.tableZones, () => props.tableSections],
+  () => { nextTick(fitToView); },
+  { once: true },
+);
 </script>
 
 <template>
@@ -258,12 +341,12 @@ watch(zoom, () => nextTick(updateViewport));
               class="absolute rounded-lg flex flex-col items-center justify-center text-center gap-0.5 select-none pointer-events-none"
               :style="{
                 top: fz.top + 'px', left: fz.left + 'px', width: fz.width + 'px', height: fz.height + 'px',
-                ...patternStyle(fz.pattern, fz.color),
+                background: fz.color,
                 border: `1px solid ${fz.color}40`,
               }"
             >
-              <span v-if="iconById(fz.icon).emoji" style="line-height:1" :style="{ fontSize: Math.max(12, fz.height * 0.32) + 'px' }">{{ iconById(fz.icon).emoji }}</span>
-              <span class="font-bold uppercase tracking-wide" :style="{ color: fz.color, fontSize: (fz.labelFontSize || 10) + 'px' }">{{ fz.label }}</span>
+              <span v-if="iconById(fz.icon).emoji" style="line-height:1" :style="{ fontSize: (fz.iconSize || Math.max(12, fz.height * 0.32)) + 'px' }">{{ iconById(fz.icon).emoji }}</span>
+              <span class="font-bold uppercase tracking-wide" :style="{ color: fz.textColor || '#000000', fontSize: (fz.labelFontSize || 10) + 'px' }">{{ fz.label }}</span>
             </div>
 
             <!-- Tables rondes -->
@@ -274,31 +357,24 @@ watch(zoom, () => nextTick(updateViewport));
                 top: t.top + 'px', left: t.left + 'px',
                 width: tableZoneSize(t) + 'px', height: tableZoneSize(t) + 'px',
                 zIndex: t.zIndex || 1,
+                transform: `rotate(${t.rotation || 0}deg)`,
               }"
             >
               <template v-for="seat in buildTableSeats(t)" :key="seat.index">
-                <button
-                  type="button"
-                  class="absolute flex items-center justify-center text-white font-bold rounded-full"
-                  :class="[
-                    seat.status === 'disabled' ? 'cursor-default' : 'cursor-pointer',
-                    selectedSeat?.seat.id === seat.id ? 'ring-2 ring-offset-1 ring-gray-900' : '',
-                  ]"
+                <div
+                  class="absolute flex items-center justify-center text-white font-bold rounded-full cursor-default"
                   :style="{
                     width: (t.seatSize || 15) + 'px', height: (t.seatSize || 15) + 'px',
-                    fontSize: Math.max(6, Math.floor((t.seatSize || 15) * 0.42)) + 'px',
-                    background: seat.status === 'disabled' ? '#eef0f2'
-                      : selectedSeat?.seat.id === seat.id ? '#111827'
-                      : catById(t.categoryId).color,
+                    fontSize: (t.seatLabelFontSize || 9) + 'px',
+                    background: seat.status === 'disabled' ? '#eef0f2' : catById(t.categoryId).color,
                     border: seat.status === 'disabled' ? '1px solid #d8dade' : 'none',
                     color: seat.status === 'disabled' ? '#9ca3af' : '#fff',
-                    left: (tableZoneSize(t) / 2 + ((t.tableSize || 30) / 2 + (t.seatSize || 15) / 2 + 8) * Math.cos((2 * Math.PI * seat.index) / (t.seatCount || 6) - Math.PI / 2) - (t.seatSize || 15) / 2) + 'px',
-                    top:  (tableZoneSize(t) / 2 + ((t.tableSize || 30) / 2 + (t.seatSize || 15) / 2 + 8) * Math.sin((2 * Math.PI * seat.index) / (t.seatCount || 6) - Math.PI / 2) - (t.seatSize || 15) / 2) + 'px',
+                    left: (tableZoneSize(t) / 2 + ((t.tableSize || 30) / 2 + (t.seatSize || 15) / 2) * Math.cos((2 * Math.PI * seat.index) / (t.seatCount || 6) - Math.PI / 2) - (t.seatSize || 15) / 2) + 'px',
+                    top:  (tableZoneSize(t) / 2 + ((t.tableSize || 30) / 2 + (t.seatSize || 15) / 2) * Math.sin((2 * Math.PI * seat.index) / (t.seatCount || 6) - Math.PI / 2) - (t.seatSize || 15) / 2) + 'px',
                   }"
                   @mouseenter="onSeatHover($event, t, seat)"
                   @mouseleave="onSeatLeave"
-                  @click.stop="onSeatClick(t, seat)"
-                >{{ (t.seatSize || 15) >= 14 ? seat.label : '' }}</button>
+                >{{ seat.label }}</div>
               </template>
               <div
                 class="absolute rounded-full flex items-center justify-center"
@@ -311,7 +387,7 @@ watch(zoom, () => nextTick(updateViewport));
                 }"
               >
                 <span class="font-bold text-center leading-tight"
-                  :style="{ color: catById(t.categoryId).color, fontSize: (t.rowLabelFontSize || 10) + 'px' }">
+                  :style="{ color: catById(t.categoryId).color, fontSize: (t.tableLabelFontSize || 13) + 'px' }">
                   {{ t.section || catById(t.categoryId).name }}
                 </span>
               </div>
@@ -321,10 +397,12 @@ watch(zoom, () => nextTick(updateViewport));
             <div
               v-for="row in seatRows" :key="row.id"
               class="absolute seat-block select-none"
+              :class="isLod ? 'cursor-zoom-in' : ''"
               :style="{ top: row.top + 'px', left: row.left + 'px' }"
+              @click="zoomIntoSection($event)"
             >
-              <!-- Badge = nom de la catégorie -->
-              <div class="row-badge"
+              <!-- Badge LOD centré (visible seulement en vue dézoomée) -->
+              <div v-if="isLod" class="row-badge row-badge--lod"
                 :style="{
                   color: catById(row.categoryId).color,
                   borderColor: catById(row.categoryId).color + '55',
@@ -337,16 +415,15 @@ watch(zoom, () => nextTick(updateViewport));
                   background: catById(row.categoryId).color + '14',
                   borderColor: catById(row.categoryId).color + '55',
                 }">
-                <div class="grid gap-1.5"
+                <div class="grid gap-1.5 lod-seat-grid"
+                  :class="isLod ? 'lod-blur' : ''"
                   :style="{ gridTemplateColumns: `repeat(${row.cols}, minmax(${row.shape === 'rounded' ? (row.seatSize || 22) * 1.5 : (row.seatSize || 22)}px, auto))` }">
-                  <button
+                  <div
                     v-for="seat in buildSeats(row)" :key="seat.id"
-                    type="button"
-                    class="seat flex items-center justify-center leading-none font-semibold"
+                    class="seat flex items-center justify-center leading-none font-semibold cursor-default"
                     :class="[
                       seat.status === 'disabled' ? 'seat-disabled' : '',
                       row.shape === 'rounded' ? 'seat-rounded' : '',
-                      selectedSeat?.seat.id === seat.id ? 'ring-2 ring-offset-1 ring-gray-900' : '',
                     ]"
                     :style="{
                       height: (row.seatSize || 22) + 'px',
@@ -354,16 +431,14 @@ watch(zoom, () => nextTick(updateViewport));
                       padding: row.shape === 'rounded' ? '0 6px' : '0',
                       fontSize: Math.max(8, Math.floor((row.seatSize || 22) * 0.4)) + 'px',
                       borderRadius: row.shape === 'round' ? '50%' : row.shape === 'rounded' ? '10px' : '4px',
+                      visibility: seat.status === 'deleted' ? 'hidden' : 'visible',
                       color: seat.status === 'disabled' ? '#9ca3af' : '#fff',
-                      background: seat.status === 'disabled' ? '#eef0f2'
-                        : selectedSeat?.seat.id === seat.id ? '#111827'
-                        : catById(seat.categoryId).color,
+                      background: seat.status === 'disabled' ? '#eef0f2' : catById(seat.categoryId).color,
                       border: seat.status === 'disabled' ? '1px solid #d8dade' : 'none',
                     }"
-                    @mouseenter="onSeatHover($event, row, seat)"
+                    @mouseenter="seat.status !== 'deleted' && onSeatHover($event, row, seat)"
                     @mouseleave="onSeatLeave"
-                    @click.stop="onSeatClick(row, seat)"
-                  >{{ (row.seatSize || 22) >= 14 ? seat.label : '' }}</button>
+                  >{{ (row.seatSize || 22) >= 14 && seat.status !== 'deleted' ? seat.label : '' }}</div>
                 </div>
               </div>
             </div>
@@ -372,56 +447,70 @@ watch(zoom, () => nextTick(updateViewport));
             <div
               v-for="ts in tableSections" :key="ts.id"
               class="absolute select-none"
+              :class="isLod ? 'cursor-zoom-in' : ''"
               :style="{
                 top: ts.top + 'px', left: ts.left + 'px',
                 width: tableSectionWidth(ts) + 'px',
-                height: tableSectionUnitSize(ts) + 24 + 'px',
+                height: tableSectionHeight(ts) + 'px',
                 zIndex: ts.zIndex || 1,
-                border: `2px dashed ${catById(ts.categoryId).color}70`,
-                borderRadius: '14px',
+                background: catById(ts.categoryId).color + '14',
+                border: `1px solid ${catById(ts.categoryId).color}55`,
+                borderRadius: '10px',
+                transform: `rotate(${ts.rotation || 0}deg)`,
               }"
+              @click="zoomIntoSection($event)"
             >
-              <template v-for="ti in (ts.tableCount || 3)" :key="ti">
-                <template v-for="seat in buildTableSectionSeats(ts).filter(s => s.tableIndex === ti - 1)" :key="seat.tableIndex + '-' + seat.seatIndex">
-                  <button
-                    type="button"
-                    class="absolute flex items-center justify-center text-white font-bold rounded-full"
-                    :class="[
-                      seat.status === 'disabled' ? 'cursor-default' : 'cursor-pointer',
-                      selectedSeat?.seat.id === seat.id ? 'ring-2 ring-offset-1 ring-gray-900' : '',
-                    ]"
-                    :style="{
-                      width: (ts.seatSize || 15) + 'px', height: (ts.seatSize || 15) + 'px',
-                      fontSize: Math.max(6, Math.floor((ts.seatSize || 15) * 0.42)) + 'px',
-                      background: seat.status === 'disabled' ? '#eef0f2'
-                        : selectedSeat?.seat.id === seat.id ? '#111827'
-                        : catById(ts.categoryId).color,
-                      border: seat.status === 'disabled' ? '1px solid #d8dade' : 'none',
-                      color: seat.status === 'disabled' ? '#9ca3af' : '#fff',
-                      left: ((ti - 1) * (tableSectionUnitSize(ts) + (ts.tableSpacing || 20)) + tableSectionUnitSize(ts) / 2 + ((ts.tableSize || 30) / 2 + (ts.seatSize || 15) / 2 + 8) * Math.cos((2 * Math.PI * seat.seatIndex) / (ts.seatsPerTable || 6) - Math.PI / 2) - (ts.seatSize || 15) / 2) + 'px',
-                      top:  (24 + tableSectionUnitSize(ts) / 2 + ((ts.tableSize || 30) / 2 + (ts.seatSize || 15) / 2 + 8) * Math.sin((2 * Math.PI * seat.seatIndex) / (ts.seatsPerTable || 6) - Math.PI / 2) - (ts.seatSize || 15) / 2) + 'px',
-                    }"
-                    @mouseenter="onSeatHover($event, ts, seat)"
-                    @mouseleave="onSeatLeave"
-                    @click.stop="onSeatClick(ts, seat)"
-                  >{{ (ts.seatSize || 15) >= 14 ? seat.label : '' }}</button>
+              <!-- LOD: centered section badge -->
+              <div v-if="isLod"
+                class="lod-section-badge"
+                :style="{
+                  color: catById(ts.categoryId).color,
+                  borderColor: catById(ts.categoryId).color + '55',
+                  fontSize: (ts.rowLabelFontSize || 10) + 'px',
+                }"
+              >{{ ts.section || catById(ts.categoryId).name }}</div>
+
+              <!-- Seats & tables (blurred in LOD) -->
+              <div :class="isLod ? 'lod-blur' : ''">
+                <template v-for="ri in (ts.tableRows || 1)" :key="'r' + ri">
+                  <template v-for="ci in (ts.tableCount || 3)" :key="'r' + ri + 'c' + ci">
+                  <template v-if="!(ts.deletedTables || []).includes((ri - 1) * (ts.tableCount || 3) + (ci - 1))">
+                    <template v-for="seat in buildTableSectionSeats(ts).filter(s => s.tableIndex === (ri - 1) * (ts.tableCount || 3) + (ci - 1))" :key="seat.tableIndex + '-' + seat.seatIndex">
+                      <div
+                        v-if="seat.status !== 'deleted'"
+                        class="absolute flex items-center justify-center text-white font-bold rounded-full cursor-default"
+                        :style="{
+                          width: (ts.seatSize || 15) + 'px', height: (ts.seatSize || 15) + 'px',
+                          fontSize: (ts.seatLabelFontSize || 9) + 'px',
+                          background: seat.status === 'disabled' ? '#eef0f2' : catById(ts.categoryId).color,
+                          border: seat.status === 'disabled' ? '1px solid #d8dade' : 'none',
+                          color: seat.status === 'disabled' ? '#9ca3af' : '#fff',
+                          left: (TS_PAD + (ci - 1) * (tableSectionUnitSize(ts) + (ts.tableSpacing ?? 2)) + tableSectionUnitSize(ts) / 2 + ((ts.tableSize || 30) / 2 + (ts.seatSize || 15) / 2) * Math.cos((2 * Math.PI * seat.seatIndex) / (ts.seatsPerTable || 6) - Math.PI / 2) - (ts.seatSize || 15) / 2) + 'px',
+                          top:  (TS_PAD + (ri - 1) * (tableSectionUnitSize(ts) + (ts.tableSpacing ?? 2)) + tableSectionUnitSize(ts) / 2 + ((ts.tableSize || 30) / 2 + (ts.seatSize || 15) / 2) * Math.sin((2 * Math.PI * seat.seatIndex) / (ts.seatsPerTable || 6) - Math.PI / 2) - (ts.seatSize || 15) / 2) + 'px',
+                        }"
+                        @mouseenter="onSeatHover($event, ts, seat)"
+                        @mouseleave="onSeatLeave"
+                      >{{ seat.label }}</div>
+                    </template>
+                    <div
+                      class="absolute rounded-full flex items-center justify-center pointer-events-none"
+                      :style="{
+                        width: (ts.tableSize || 30) + 'px', height: (ts.tableSize || 30) + 'px',
+                        left: (TS_PAD + (ci - 1) * (tableSectionUnitSize(ts) + (ts.tableSpacing ?? 2)) + (tableSectionUnitSize(ts) - (ts.tableSize || 30)) / 2) + 'px',
+                        top:  (TS_PAD + (ri - 1) * (tableSectionUnitSize(ts) + (ts.tableSpacing ?? 2)) + (tableSectionUnitSize(ts) - (ts.tableSize || 30)) / 2) + 'px',
+                        background: catById(ts.categoryId).color + '22',
+                        border: `2px solid ${catById(ts.categoryId).color}88`,
+                      }"
+                    >
+                      <span class="font-bold leading-tight pointer-events-none"
+                        :style="{ color: catById(ts.categoryId).color, fontSize: (ts.tableLabelFontSize || 13) + 'px' }">
+                        T{{ (ri - 1) * (ts.tableCount || 3) + ci }}
+                      </span>
+                    </div>
+                  </template><!-- /v-if deletedTables -->
+                  </template>
                 </template>
-                <div
-                  class="absolute rounded-full flex items-center justify-center pointer-events-none"
-                  :style="{
-                    width: (ts.tableSize || 30) + 'px', height: (ts.tableSize || 30) + 'px',
-                    left: ((ti - 1) * (tableSectionUnitSize(ts) + (ts.tableSpacing || 20)) + (tableSectionUnitSize(ts) - (ts.tableSize || 30)) / 2) + 'px',
-                    top:  (24 + (tableSectionUnitSize(ts) - (ts.tableSize || 30)) / 2) + 'px',
-                    background: catById(ts.categoryId).color + '22',
-                    border: `2px solid ${catById(ts.categoryId).color}88`,
-                  }"
-                >
-                  <span class="font-bold leading-tight pointer-events-none"
-                    :style="{ color: catById(ts.categoryId).color, fontSize: Math.max(6, (ts.rowLabelFontSize || 10) - 2) + 'px' }">
-                    T{{ ti }}
-                  </span>
-                </div>
-              </template>
+              </div>
             </div>
 
             <div v-if="zones.length === 0 && seatRows.length === 0 && freeZones.length === 0 && tableZones.length === 0 && tableSections.length === 0"
@@ -430,68 +519,56 @@ watch(zoom, () => nextTick(updateViewport));
             </div>
           </div>
 
-        <!-- Mini-plan -->
+        <!-- Mini-plan (affiché seulement si zoom > 100%) -->
         <MiniMap
+          v-if="zoom > 1"
           :categories="categories"
           :zones="zones"
           :seat-zones="seatRows"
           :content-width="canvasWidth"
           :content-height="canvasHeight"
-          :viewport="viewport"
+          :pan-x="panX"
+          :pan-y="panY"
+          :zoom="zoom"
+          :viewport-pixel-w="viewportEl ? viewportEl.clientWidth : 900"
+          :viewport-pixel-h="viewportEl ? viewportEl.clientHeight : 500"
           @navigate="navigateTo"
         />
       </div>
 
-      <!-- Panneau info siège sélectionné -->
-      <div v-if="selectedSeat" class="w-48 shrink-0 bg-gray-50 border border-gray-100 rounded-xl p-4 text-sm flex flex-col gap-2">
-        <div class="flex items-center gap-2">
-          <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: catById(selectedSeat.seat.categoryId).color }"></span>
-          <span class="font-bold text-gray-800">Siège {{ selectedSeat.seat.label }}</span>
+    </div>
+  </div>
+
+  <!-- Tooltip hover siège -->
+  <Teleport to="body">
+    <div
+      v-if="hoveredSeat"
+      class="fixed z-50 pointer-events-none shadow-xl rounded-xl overflow-hidden"
+      style="min-width: 180px; background:#fff; border:1px solid #e5e7eb;"
+      :style="{ left: hoveredSeat.x + 16 + 'px', top: hoveredSeat.y - 30 + 'px' }"
+    >
+      <div class="flex divide-x divide-gray-100 px-1 pt-2 pb-1">
+        <div class="flex-1 flex flex-col items-center px-2">
+          <span class="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Section</span>
+          <span class="text-sm font-bold text-gray-900 mt-0.5">{{ hoveredSeat.seat.section || catById(hoveredSeat.seat.categoryId).name }}</span>
         </div>
-        <dl class="flex flex-col gap-1 text-xs">
-          <div class="flex justify-between"><dt class="text-gray-400">Section</dt><dd class="font-medium text-gray-700">{{ selectedSeat.row.section || selectedSeat.row.label }}</dd></div>
-          <div class="flex justify-between"><dt class="text-gray-400">Catégorie</dt><dd class="font-medium" :style="{ color: catById(selectedSeat.seat.categoryId).color }">{{ catById(selectedSeat.seat.categoryId).name }}</dd></div>
-          <div class="flex justify-between"><dt class="text-gray-400">Statut</dt>
-            <dd class="font-medium" :class="selectedSeat.seat.status === 'available' ? 'text-green-600' : 'text-amber-600'">
-              {{ selectedSeat.seat.status === 'available' ? 'Disponible' : 'Désactivé' }}
-            </dd>
-          </div>
-        </dl>
-        <button @click="selectedSeat = null" class="mt-auto text-xs text-gray-400 hover:text-gray-600">Fermer</button>
+        <div class="flex-1 flex flex-col items-center px-2">
+          <span class="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Rangée</span>
+          <span class="text-sm font-bold text-gray-900 mt-0.5">{{ hoveredSeat.seat.rowLabel || '—' }}</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center px-2">
+          <span class="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Siège</span>
+          <span class="text-sm font-bold text-gray-900 mt-0.5">{{ hoveredSeat.seat.colLabel || hoveredSeat.seat.label }}</span>
+        </div>
+      </div>
+      <div
+        class="flex items-center justify-center gap-2 px-3 py-1.5 mt-1 text-white text-xs font-bold"
+        :style="{ background: catById(hoveredSeat.seat.categoryId).color }"
+      >
+        <span>{{ catById(hoveredSeat.seat.categoryId).name }}</span>
       </div>
     </div>
-
-    <!-- Tooltip hover -->
-    <Teleport to="body">
-      <div
-        v-if="hoveredSeat"
-        class="fixed z-50 pointer-events-none shadow-xl rounded-xl overflow-hidden"
-        style="min-width: 180px; background:#fff; border:1px solid #e5e7eb;"
-        :style="{ left: hoveredSeat.x + 16 + 'px', top: hoveredSeat.y - 30 + 'px' }"
-      >
-        <div class="flex divide-x divide-gray-100 px-1 pt-2 pb-1">
-          <div class="flex-1 flex flex-col items-center px-2">
-            <span class="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Section</span>
-            <span class="text-sm font-bold text-gray-900 mt-0.5">{{ hoveredSeat.seat.section || catById(hoveredSeat.seat.categoryId).name }}</span>
-          </div>
-          <div class="flex-1 flex flex-col items-center px-2">
-            <span class="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Rangée</span>
-            <span class="text-sm font-bold text-gray-900 mt-0.5">{{ hoveredSeat.seat.rowLabel || '—' }}</span>
-          </div>
-          <div class="flex-1 flex flex-col items-center px-2">
-            <span class="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Siège</span>
-            <span class="text-sm font-bold text-gray-900 mt-0.5">{{ hoveredSeat.seat.colLabel || hoveredSeat.seat.label }}</span>
-          </div>
-        </div>
-        <div
-          class="flex items-center justify-center gap-2 px-3 py-1.5 mt-1 text-white text-xs font-bold"
-          :style="{ background: catById(hoveredSeat.seat.categoryId).color }"
-        >
-          <span>{{ catById(hoveredSeat.seat.categoryId).name }}</span>
-        </div>
-      </div>
-    </Teleport>
-  </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -503,8 +580,8 @@ watch(zoom, () => nextTick(updateViewport));
 }
 .seat-block-card {
   border: 1px solid transparent;
-  border-radius: 22px;
-  padding: 14px;
+  border-radius: 8px;
+  padding: 6px;
 }
 .row-badge {
   position: absolute;
@@ -520,6 +597,37 @@ watch(zoom, () => nextTick(updateViewport));
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   z-index: 2;
   white-space: nowrap;
+}
+.lod-blur {
+  filter: blur(2px);
+  opacity: 0.5;
+  transition: filter 0.2s, opacity 0.2s;
+  pointer-events: none;
+}
+.lod-seat-grid {
+  transition: filter 0.2s, opacity 0.2s;
+}
+.row-badge--lod {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+}
+.lod-section-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  z-index: 3;
+  white-space: nowrap;
+  pointer-events: none;
 }
 .seat {
   cursor: pointer;

@@ -46,6 +46,10 @@ async function save() {
   await load();
 }
 
+function copy(id) {
+  navigator.clipboard.writeText(id);
+}
+
 async function remove(c) {
   errorMsg.value = '';
   if (!confirm(`Supprimer la catégorie "${c.name}" ?`)) return;
@@ -75,6 +79,7 @@ async function remove(c) {
         <tr class="text-left text-xs text-gray-400 border-b border-gray-100">
           <th class="pb-2 font-semibold">Couleur</th>
           <th class="pb-2 font-semibold">Nom</th>
+          <th class="pb-2 font-semibold">UUID</th>
           <th class="pb-2"></th>
         </tr>
       </thead>
@@ -82,6 +87,15 @@ async function remove(c) {
         <tr v-for="c in categories" :key="c.id" class="border-b border-gray-50">
           <td class="py-2"><span class="inline-block w-4 h-4 rounded" :style="{ background: c.color }"></span></td>
           <td class="py-2 font-semibold text-gray-700">{{ c.name }}</td>
+          <td class="py-2">
+            <div class="flex items-center gap-1.5">
+              <span class="font-mono text-xs text-gray-400 truncate max-w-[180px]">{{ c.id }}</span>
+              <button @click="copy(c.id)" :title="'Copier ' + c.id"
+                class="shrink-0 w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-gray-500 text-xs flex items-center justify-center">
+                📋
+              </button>
+            </div>
+          </td>
           <td class="py-2 text-right">
             <button @click="openEdit(c)" class="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 text-xs mr-1">✎</button>
             <button @click="remove(c)" class="w-7 h-7 rounded bg-red-50 hover:bg-red-100 text-red-500 text-xs">✕</button>

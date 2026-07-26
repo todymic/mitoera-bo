@@ -266,7 +266,7 @@ function setZoom(next) {
 }
 function zoomIn()    { setZoom(zoom.value + ZOOM_STEP); }
 function zoomOut()   { setZoom(zoom.value - ZOOM_STEP); }
-function zoomReset() { zoom.value = 1; panX.value = 40; panY.value = 40; }
+function zoomReset() { fitToView(); }
 
 function onWheel(ev) {
   ev.preventDefault();

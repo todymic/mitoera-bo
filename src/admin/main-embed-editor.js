@@ -1,10 +1,9 @@
 import { createApp } from 'vue';
-import { router } from './router.js';
 import { auth } from './services/auth.js';
-import AdminApp from './AdminApp.vue';
+import EmbedEditor from './EmbedEditor.vue';
 import '../style.css';
 
-// Auto-auth depuis un token passé en query param (ex: embed depuis hetsika-bo)
+// Auth depuis ?token=
 const urlParams = new URLSearchParams(window.location.search);
 const embedToken = urlParams.get('token');
 if (embedToken) {
@@ -14,4 +13,4 @@ if (embedToken) {
   window.history.replaceState({}, '', clean);
 }
 
-createApp(AdminApp).use(router).mount('#admin');
+createApp(EmbedEditor).mount('#embed-editor');

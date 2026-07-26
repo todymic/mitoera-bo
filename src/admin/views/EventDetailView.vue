@@ -44,19 +44,18 @@ function applyChanges(data) {
   const changes = Array.isArray(data)
     ? data
     : (data.seatKeys || []).map(k => ({ seatKey: k, status: data.status }));
-  const updated = { ...eventDetail.value };
-  const seats = [...(updated.seats || [])];
+  const seats = (eventDetail.value?.seats || []).map(s => ({ ...s }));
   for (const change of changes) {
     const existing = seats.find(s => s.seatKey === change.seatKey);
     if (existing) { existing.status = change.status; }
     else { seats.push({ seatKey: change.seatKey, status: change.status }); }
   }
-  updated.seats = seats;
-  eventDetail.value = updated;
+  eventDetail.value = { ...eventDetail.value, seats };
 }
 
 function connectSSE() {
-  const url = new URL('/.well-known/mercure', window.location.origin);
+  const mercureBase = import.meta.env.VITE_MERCURE_URL || `${window.location.origin}/.well-known/mercure`;
+  const url = new URL(mercureBase);
   url.searchParams.append('topic', `event/${eventId.value}/seats`);
   mercureSource = new EventSource(url.toString());
   mercureSource.onmessage = (e) => {
@@ -201,7 +200,7 @@ function selectAvail()  { selectedSeats.value = new Set(allSeats.value.filter(s 
 
 // Présence de chaque statut dans la sélection
 const hasSelectedAvailable = computed(() =>
-  [...selectedSeats.value].some(k => (seatStatusMap.value[k] || 'available') === 'available')
+  [...selectedSeats.value].some(k => ['available', 'hold'].includes(seatStatusMap.value[k] || 'available'))
 );
 const hasSelectedBooked = computed(() =>
   [...selectedSeats.value].some(k => seatStatusMap.value[k] === 'booked')
@@ -215,8 +214,8 @@ async function applyStatus(status) {
   // N'applique qu'aux sièges dont le statut change réellement
   let keys = [...selectedSeats.value];
   if (activeTab.value === 'status') {
-    if (status === 'booked')    keys = keys.filter(k => (seatStatusMap.value[k] || 'available') === 'available');
-    if (status === 'available') keys = keys.filter(k => seatStatusMap.value[k] === 'booked');
+    if (status === 'booked')    keys = keys.filter(k => ['available', 'hold'].includes(seatStatusMap.value[k] || 'available'));
+    if (status === 'available') keys = keys.filter(k => ['booked', 'hold'].includes(seatStatusMap.value[k]));
   } else if (activeTab.value === 'for-sale') {
     if (status === 'available') keys = keys.filter(k => seatStatusMap.value[k] === 'canceled');
     if (status === 'canceled')  keys = keys.filter(k => (seatStatusMap.value[k] || 'available') === 'available');
