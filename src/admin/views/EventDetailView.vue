@@ -221,10 +221,17 @@ async function applyStatus(status) {
     if (status === 'canceled')  keys = keys.filter(k => (seatStatusMap.value[k] || 'available') === 'available');
   }
   if (!keys.length) return;
+  // Snapshot des hold Mercure-only (pas dans les keys à modifier) avant rechargement DB
+  const holdSnapshot = Object.entries(seatStatusMap.value)
+    .filter(([k, v]) => v === 'hold' && !keys.includes(k))
+    .map(([seatKey]) => ({ seatKey, status: 'hold' }));
+
   updating.value = true;
   try {
     await adminApi.bulkUpdateEventSeats(eventId.value, keys, status);
     eventDetail.value = await adminApi.getEvent(eventId.value);
+    // Ré-applique les hold Mercure écrasés par le rechargement DB
+    if (holdSnapshot.length) applyChanges(holdSnapshot);
     selectedSeats.value = new Set();
   } finally { updating.value = false; }
 }
