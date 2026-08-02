@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { adminApi } from '../services/adminApi.js';
+import { subscribeToSeatStatuses } from '../services/firestore.js';
 
 import { computeAxisLabel } from '../../services/seatLabel.js';
 import EventPlanView from '../components/EventPlanView.vue';
@@ -37,13 +38,9 @@ async function load() {
   } finally { loading.value = false; }
 }
 
-let mercureSource = null;
+let unsubscribeFirestore = null;
 
-function applyChanges(data) {
-  // Normalise les deux formats : [{seatKey,status}] ou {seatKeys:[],status:''}
-  const changes = Array.isArray(data)
-    ? data
-    : (data.seatKeys || []).map(k => ({ seatKey: k, status: data.status }));
+function applyChanges(changes) {
   const seats = (eventDetail.value?.seats || []).map(s => ({ ...s }));
   for (const change of changes) {
     const existing = seats.find(s => s.seatKey === change.seatKey);
@@ -53,34 +50,23 @@ function applyChanges(data) {
   eventDetail.value = { ...eventDetail.value, seats };
 }
 
-function connectSSE() {
-  const mercureBase = import.meta.env.VITE_MERCURE_URL || `${window.location.origin}/.well-known/mercure`;
-  const url = new URL(mercureBase);
-  url.searchParams.append('topic', `event/${eventId.value}/seats`);
-  mercureSource = new EventSource(url.toString());
-  mercureSource.onmessage = (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      applyChanges(data);
-      if (window.parent !== window) {
-        window.parent.postMessage({ type: 'placio:seat-update', payload: data }, '*');
-      }
-    } catch (_) {}
-  };
-  mercureSource.onerror = () => {
-    mercureSource?.close();
-    mercureSource = null;
-    setTimeout(connectSSE, 3000);
-  };
+function connectFirestore() {
+  unsubscribeFirestore?.();
+  unsubscribeFirestore = subscribeToSeatStatuses(eventId.value, (changes) => {
+    applyChanges(changes);
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'placio:seat-update', payload: changes }, '*');
+    }
+  });
 }
 
 onMounted(async () => {
   await load();
-  connectSSE();
+  connectFirestore();
 });
 
 onUnmounted(() => {
-  mercureSource?.close();
+  unsubscribeFirestore?.();
 });
 
 const seatStatusMap = computed(() => {
@@ -221,21 +207,10 @@ async function applyStatus(status) {
     if (status === 'canceled')  keys = keys.filter(k => (seatStatusMap.value[k] || 'available') === 'available');
   }
   if (!keys.length) return;
-  // Snapshot des hold Mercure-only (pas dans les keys à modifier) avant rechargement DB
-  const holdSnapshot = Object.entries(seatStatusMap.value)
-    .filter(([k, v]) => v === 'hold' && !keys.includes(k))
-    .map(([seatKey]) => ({ seatKey, status: 'hold' }));
-
   updating.value = true;
   try {
     await adminApi.bulkUpdateEventSeats(eventId.value, keys, status);
     eventDetail.value = await adminApi.getEvent(eventId.value);
-    // Ré-applique uniquement les hold Mercure-only (DB dit "available" = pas en DB)
-    // Les hold réels en DB sont déjà corrects après rechargement, on ne les écrase pas
-    const mercureOnlyHolds = holdSnapshot.filter(
-      ({ seatKey }) => (seatStatusMap.value[seatKey] || 'available') === 'available'
-    );
-    if (mercureOnlyHolds.length) applyChanges(mercureOnlyHolds);
     selectedSeats.value = new Set();
   } finally { updating.value = false; }
 }
