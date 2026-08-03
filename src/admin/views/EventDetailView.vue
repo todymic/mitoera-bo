@@ -19,6 +19,7 @@ const loading      = ref(false);
 const activeTab    = ref(route.query.embed === 'true' ? 'status' : 'summary');
 const selectedSeats = ref(new Set());
 const updating     = ref(false);
+const publicKey    = ref(null);
 
 const TABS = [
   { id: 'summary',    label: 'Résumé' },
@@ -27,13 +28,24 @@ const TABS = [
   { id: 'categories', label: 'Catégories' },
 ];
 
+const widgetUrl = computed(() => {
+  if (!publicKey.value || !eventDetail.value?.id) return null;
+  const base = window.location.origin.replace(':3000', ':8000');
+  return `${base}/render.html?key=${publicKey.value}&event=${eventDetail.value.id}`;
+});
+
 async function load() {
   loading.value = true;
   try {
-    eventDetail.value = await adminApi.getEvent(eventId.value);
-    event.value = eventDetail.value;
-    if (eventDetail.value?.chartId) {
-      categories.value = await adminApi.listCategories(eventDetail.value.chartId);
+    const [detail, keys] = await Promise.all([
+      adminApi.getEvent(eventId.value),
+      adminApi.listApiKeys(),
+    ]);
+    eventDetail.value = detail;
+    event.value = detail;
+    publicKey.value = keys.find(k => k.scope === 'public' && k.active)?.keyId ?? null;
+    if (detail?.chartId) {
+      categories.value = await adminApi.listCategories(detail.chartId);
     }
   } finally { loading.value = false; }
 }
@@ -230,6 +242,13 @@ async function applyStatus(status) {
         <span class="text-gray-400">/</span>
         <span class="font-semibold text-gray-800 truncate max-w-[160px] sm:max-w-none">{{ event?.title || '…' }}</span>
         <span v-if="event?.chartName" class="text-xs text-gray-400 hidden sm:inline">— {{ event.chartName }}</span>
+        <a v-if="widgetUrl" :href="widgetUrl" target="_blank"
+          class="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+          </svg>
+          Aperçu widget
+        </a>
       </div>
       <div class="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
         <button v-for="tab in TABS" :key="tab.id"
