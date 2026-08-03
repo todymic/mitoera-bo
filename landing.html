@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mitoera — Prenez place</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green:      #1a7a4a;
+    --green-dark: #145f39;
+    --green-light:#e8f5ee;
+    --red:        #c0392b;
+    --red-dark:   #a02a1e;
+    --red-light:  #fdf0ef;
+    --bg:         #ffffff;
+    --gray-50:    #f9fafb;
+    --gray-100:   #f3f4f6;
+    --gray-200:   #e5e7eb;
+    --gray-400:   #9ca3af;
+    --gray-600:   #4b5563;
+    --gray-800:   #1f2937;
+    --gray-900:   #111827;
+    --card-bg:    #ffffff;
+    --nav-bg:     rgba(255,255,255,0.95);
+    --nav-border: #e5e7eb;
+  }
+
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: var(--gray-800);
+    background: var(--bg);
+    line-height: 1.6;
+  }
+
+  /* NAV */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--nav-bg);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--nav-border);
+    padding: 0 2rem;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px;
+  }
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 1.4rem; font-weight: 800; color: var(--green);
+    text-decoration: none;
+  }
+  .nav-logo-icon {
+    width: 34px; height: 34px; background: var(--green);
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  }
+  .nav-logo-icon svg { width: 18px; height: 18px; fill: white; }
+  .nav-links { display: flex; align-items: center; gap: 2rem; }
+  .nav-links a {
+    text-decoration: none; color: var(--gray-600); font-size: 0.875rem; font-weight: 500;
+    transition: color .2s;
+  }
+  .nav-links a:hover { color: var(--green); }
+  .btn-nav {
+    background: var(--green); color: white;
+    padding: 0.45rem 1.1rem; border-radius: 8px;
+    font-size: 0.875rem; font-weight: 600;
+    text-decoration: none; transition: background .2s;
+  }
+  .btn-nav:hover { background: var(--green-dark); }
+
+  /* HERO */
+  .hero {
+    background: #04100a;
+    color: white; padding: 6rem 2rem 5rem;
+    text-align: center; position: relative; overflow: hidden;
+  }
+  #hero-canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
+    color: white; border-radius: 999px;
+    padding: 0.3rem 1rem; font-size: 0.75rem; font-weight: 700;
+    margin-bottom: 2rem; text-transform: uppercase; letter-spacing: .08em;
+  }
+  .hero-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #6ee7a0; flex-shrink: 0; }
+  .hero h1 {
+    font-size: clamp(2.6rem, 5.5vw, 4.5rem);
+    font-weight: 900; line-height: 1.1; margin-bottom: 1.5rem;
+    text-wrap: balance;
+  }
+  .hero h1 span { color: #6ee7a0; }
+  .hero > p {
+    font-size: clamp(1rem, 1.8vw, 1.2rem);
+    color: rgba(255,255,255,.82); max-width: 580px; margin: 0 auto 2.5rem;
+  }
+  .hero-cta { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+  .btn-primary {
+    background: var(--red); color: white;
+    padding: 0.8rem 1.9rem; border-radius: 10px;
+    font-size: 0.95rem; font-weight: 700;
+    text-decoration: none; transition: background .2s, transform .15s;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .btn-primary:hover { background: var(--red-dark); transform: translateY(-1px); }
+  .btn-secondary {
+    background: rgba(255,255,255,.12); color: white;
+    border: 1.5px solid rgba(255,255,255,.35);
+    padding: 0.8rem 1.9rem; border-radius: 10px;
+    font-size: 0.95rem; font-weight: 600;
+    text-decoration: none; transition: background .2s;
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,.22); }
+
+  .hero-visual { margin-top: 4rem; max-width: 780px; margin-left: auto; margin-right: auto; position: relative; }
+  .hero-screen {
+    background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.18);
+    border-radius: 14px; padding: 1.25rem; backdrop-filter: blur(4px);
+  }
+  .screen-bar { display: flex; gap: 6px; margin-bottom: 1rem; }
+  .screen-bar span { width: 10px; height: 10px; border-radius: 50%; }
+  .screen-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; }
+  .seat { aspect-ratio: 1; border-radius: 4px; transition: opacity .2s; }
+  .seat.free     { background: rgba(255,255,255,.28); }
+  .seat.taken    { background: #c0392b; opacity: .85; }
+  .seat.selected { background: #6ee7a0; }
+  .seat.vip      { background: #f59e0b; }
+  .legend {
+    display: flex; gap: 1.25rem; margin-top: .9rem;
+    justify-content: center; flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: .72rem; color: rgba(255,255,255,.75); }
+  .legend-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+
+  /* STATS */
+  .stats {
+    background: var(--green); padding: 2.25rem 2rem;
+    display: flex; justify-content: center; gap: 3.5rem; flex-wrap: wrap;
+  }
+  .stat { text-align: center; color: white; }
+  .stat-number { font-size: 2rem; font-weight: 900; color: #6ee7a0; font-variant-numeric: tabular-nums; }
+  .stat-label  { font-size: 0.8rem; color: rgba(255,255,255,.75); margin-top: 2px; }
+
+  /* SECTIONS */
+  section { padding: 5rem 2rem; }
+  .container { max-width: 1080px; margin: 0 auto; }
+  .section-tag {
+    display: inline-block;
+    background: var(--green-light); color: var(--green);
+    font-size: 0.7rem; font-weight: 700;
+    letter-spacing: .1em; text-transform: uppercase;
+    padding: 0.28rem 0.85rem; border-radius: 999px; margin-bottom: 1rem;
+  }
+  .section-title {
+    font-size: clamp(1.7rem, 3.2vw, 2.6rem);
+    font-weight: 800; color: var(--gray-900);
+    line-height: 1.2; margin-bottom: 1rem; text-wrap: balance;
+  }
+  .section-title span { color: var(--green); }
+  .section-sub { color: var(--gray-600); font-size: 1rem; max-width: 540px; }
+  .text-center { text-align: center; }
+  .text-center .section-sub { margin: 0 auto; }
+
+  /* FEATURES */
+  .features-bg { background: var(--gray-50); }
+  .features-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+    gap: 1.25rem; margin-top: 3rem;
+  }
+  .feature-card {
+    background: var(--card-bg); border: 1px solid var(--gray-200);
+    border-radius: 14px; padding: 1.75rem;
+    transition: box-shadow .2s, transform .2s;
+  }
+  .feature-card:hover { box-shadow: 0 8px 28px rgba(0,0,0,.07); transform: translateY(-2px); }
+  .feature-icon {
+    width: 48px; height: 48px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 1.1rem; font-size: 1.4rem;
+  }
+  .feature-icon.green { background: var(--green-light); }
+  .feature-icon.red   { background: var(--red-light); }
+  .feature-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: .45rem; color: var(--gray-900); }
+  .feature-card p  { color: var(--gray-600); font-size: 0.875rem; line-height: 1.65; }
+
+  /* HOW */
+  .steps {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 1.25rem; margin-top: 3rem;
+  }
+  .step { text-align: center; padding: 1.25rem; }
+  .step-number {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: var(--green); color: white;
+    font-size: 1.3rem; font-weight: 900;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1.1rem;
+  }
+  .step h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: .4rem; color: var(--gray-900); }
+  .step p  { font-size: 0.85rem; color: var(--gray-600); }
+
+  /* PRICING */
+  .pricing-bg { background: var(--gray-50); }
+  .pricing-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+    gap: 1.25rem; margin-top: 3rem; align-items: start;
+  }
+  .pricing-card {
+    background: var(--card-bg); border: 1.5px solid var(--gray-200);
+    border-radius: 18px; padding: 1.9rem; position: relative;
+  }
+  .pricing-card.featured { border-color: var(--green); box-shadow: 0 0 0 4px var(--green-light); }
+  .pricing-badge {
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    background: var(--green); color: white;
+    font-size: 0.68rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+    padding: 0.22rem 0.85rem; border-radius: 999px;
+  }
+  .pricing-plan  { font-size: 0.8rem; font-weight: 700; color: var(--green); text-transform: uppercase; letter-spacing: .07em; margin-bottom: .4rem; }
+  .pricing-price { font-size: 2.6rem; font-weight: 900; color: var(--gray-900); line-height: 1; font-variant-numeric: tabular-nums; }
+  .pricing-price span { font-size: 0.95rem; font-weight: 400; color: var(--gray-400); }
+  .pricing-desc  { font-size: 0.82rem; color: var(--gray-600); margin-top: .45rem; margin-bottom: 1.4rem; }
+  .pricing-features { list-style: none; margin-bottom: 1.6rem; display: flex; flex-direction: column; gap: .55rem; }
+  .pricing-features li { font-size: 0.85rem; color: var(--gray-600); display: flex; align-items: center; gap: 8px; }
+  .pricing-features li::before { content: '✓'; color: var(--green); font-weight: 800; flex-shrink: 0; }
+  .btn-plan {
+    display: block; text-align: center; text-decoration: none;
+    padding: .7rem; border-radius: 9px; font-weight: 700; font-size: 0.875rem;
+    transition: background .2s, transform .15s;
+  }
+  .btn-plan:hover { transform: translateY(-1px); }
+  .btn-plan.outline { border: 2px solid var(--green); color: var(--green); }
+  .btn-plan.outline:hover { background: var(--green-light); }
+  .btn-plan.solid { background: var(--green); color: white; }
+  .btn-plan.solid:hover { background: var(--green-dark); }
+
+  /* TESTIMONIALS */
+  .testimonials-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+    gap: 1.25rem; margin-top: 3rem;
+  }
+  .testimonial {
+    background: var(--card-bg); border: 1px solid var(--gray-200);
+    border-radius: 14px; padding: 1.6rem;
+  }
+  .stars { color: #f59e0b; font-size: 0.95rem; margin-bottom: .9rem; }
+  .testimonial p { font-size: 0.875rem; color: var(--gray-600); font-style: italic; line-height: 1.7; margin-bottom: 1.1rem; }
+  .testimonial-author { display: flex; align-items: center; gap: 10px; }
+  .avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.85rem; color: white; flex-shrink: 0;
+  }
+  .author-name { font-size: 0.85rem; font-weight: 700; color: var(--gray-900); }
+  .author-role { font-size: 0.72rem; color: var(--gray-400); }
+
+  /* CTA */
+  .cta-banner {
+    background: linear-gradient(135deg, var(--red) 0%, var(--red-dark) 100%);
+    color: white; text-align: center; padding: 5rem 2rem;
+  }
+  .cta-banner h2 { font-size: clamp(1.7rem, 3.2vw, 2.6rem); font-weight: 900; margin-bottom: 1rem; text-wrap: balance; }
+  .cta-banner p  { font-size: 1rem; color: rgba(255,255,255,.82); max-width: 480px; margin: 0 auto 2rem; }
+  .btn-white {
+    background: white; color: var(--red);
+    padding: 0.85rem 2.1rem; border-radius: 10px;
+    font-size: 0.95rem; font-weight: 700; text-decoration: none; display: inline-block;
+    transition: transform .15s, box-shadow .2s;
+  }
+  .btn-white:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+
+  /* FOOTER */
+  footer { background: #0a1810; color: rgba(255,255,255,.65); padding: 3rem 2rem 2rem; }
+  .footer-inner {
+    max-width: 1080px; margin: 0 auto;
+    display: flex; flex-wrap: wrap; gap: 2.5rem; justify-content: space-between;
+    padding-bottom: 2rem; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 1.5rem;
+  }
+  .footer-brand { max-width: 240px; }
+  .footer-logo { font-size: 1.3rem; font-weight: 900; color: white; margin-bottom: .65rem; display: flex; align-items: center; gap: 8px; }
+  .footer-logo-dot { width: 7px; height: 7px; border-radius: 50%; background: #6ee7a0; }
+  .footer-brand p { font-size: 0.82rem; line-height: 1.65; }
+  .footer-col h4 { color: white; font-size: 0.82rem; font-weight: 700; margin-bottom: .9rem; letter-spacing: .04em; text-transform: uppercase; }
+  .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: .45rem; }
+  .footer-col a  { color: rgba(255,255,255,.55); text-decoration: none; font-size: 0.82rem; transition: color .2s; }
+  .footer-col a:hover { color: #6ee7a0; }
+  .footer-bottom { max-width: 1080px; margin: 0 auto; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+  .footer-bottom span { font-size: 0.75rem; }
+
+  /* SHOWCASE */
+  .showcase-section { background: #0a1a0f; padding: 5rem 2rem; }
+  .showcase-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+  .showcase-card {
+    background: #0f2018; border: 1px solid rgba(110,231,160,.15);
+    border-radius: 12px; overflow: hidden;
+    box-shadow: 0 4px 32px rgba(0,0,0,.4);
+    transition: transform .25s, box-shadow .25s;
+  }
+  .showcase-card:hover { transform: translateY(-4px); box-shadow: 0 12px 48px rgba(0,0,0,.55), 0 0 0 1px rgba(110,231,160,.25); }
+  .showcase-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; background: rgba(0,0,0,.3);
+    border-bottom: 1px solid rgba(255,255,255,.07);
+  }
+  .showcase-dots { display: flex; gap: 6px; }
+  .showcase-dots span { width: 10px; height: 10px; border-radius: 50%; }
+  .showcase-label { font-size: 0.72rem; color: rgba(255,255,255,.4); font-weight: 600; letter-spacing: .04em; }
+  .showcase-body { background: #06120c; padding: 0; }
+  .showcase-svg { display: block; width: 100%; height: auto; }
+  .showcase-footer {
+    padding: 10px 14px; font-size: 0.72rem;
+    color: rgba(255,255,255,.4); font-weight: 500;
+    border-top: 1px solid rgba(255,255,255,.07);
+    background: rgba(0,0,0,.2);
+  }
+  .showcase-section .section-title { color: white; }
+  .showcase-section .section-sub { color: rgba(255,255,255,.55); }
+  .showcase-section .section-tag { border-color: rgba(110,231,160,.3); color: #6ee7a0; }
+
+  @media (max-width: 600px) {
+    nav { padding: 0 1rem; }
+    .nav-links a:not(.btn-nav) { display: none; }
+    .stats { gap: 2rem; }
+  }
+</style>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="nav-logo">
+    <div class="nav-logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M4 4h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 10h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 16h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/></svg>
+    </div>
+    Mitoera
+  </a>
+  <div class="nav-links">
+    <a href="#features">Fonctionnalités</a>
+    <a href="#how">Comment ça marche</a>
+    <a href="#pricing">Tarifs</a>
+    <a href="#" class="btn-nav">Se connecter</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-badge"><span class="hero-badge-dot"></span> Plans de salle interactifs</div>
+  <div style="font-size:clamp(1rem,2vw,1.2rem);font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:.75rem;">Mitoera · Prenez place</div>
+  <h1>Chaque place,<br><span>à la bonne personne</span></h1>
+  <p>Mitoera vous permet de créer des plans de salle visuels et de gérer la disponibilité de chaque place en temps réel. Intégrez le widget sur votre site — vos clients choisissent leur place, vous pilotez tout.</p>
+  <div class="hero-cta">
+    <a href="#" class="btn-primary">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      Commencer gratuitement
+    </a>
+    <a href="#how" class="btn-secondary">Voir comment ça marche →</a>
+  </div>
+  <div class="hero-visual">
+    <div class="hero-screen">
+      <div class="screen-bar">
+        <span style="background:#ff5f56"></span>
+        <span style="background:#ffbd2e"></span>
+        <span style="background:#27c93f"></span>
+      </div>
+      <div class="screen-grid">
+        <div class="seat free"></div><div class="seat selected"></div><div class="seat selected"></div><div class="seat free"></div><div class="seat taken"></div><div class="seat taken"></div><div class="seat free"></div><div class="seat selected"></div><div class="seat free"></div><div class="seat free"></div><div class="seat taken"></div><div class="seat free"></div>
+        <div class="seat taken"></div><div class="seat free"></div><div class="seat vip"></div><div class="seat vip"></div><div class="seat free"></div><div class="seat selected"></div><div class="seat selected"></div><div class="seat free"></div><div class="seat taken"></div><div class="seat free"></div><div class="seat free"></div><div class="seat taken"></div>
+        <div class="seat free"></div><div class="seat taken"></div><div class="seat free"></div><div class="seat selected"></div><div class="seat selected"></div><div class="seat free"></div><div class="seat vip"></div><div class="seat taken"></div><div class="seat free"></div><div class="seat selected"></div><div class="seat free"></div><div class="seat free"></div>
+        <div class="seat selected"></div><div class="seat free"></div><div class="seat taken"></div><div class="seat free"></div><div class="seat free"></div><div class="seat taken"></div><div class="seat free"></div><div class="seat selected"></div><div class="seat vip"></div><div class="seat vip"></div><div class="seat free"></div><div class="seat taken"></div>
+        <div class="seat free"></div><div class="seat selected"></div><div class="seat free"></div><div class="seat taken"></div><div class="seat free"></div><div class="seat selected"></div><div class="seat free"></div><div class="seat free"></div><div class="seat taken"></div><div class="seat free"></div><div class="seat selected"></div><div class="seat free"></div>
+      </div>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-dot" style="background:rgba(255,255,255,.28)"></span>Libre</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#6ee7a0"></span>Sélectionné</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#c0392b"></span>Occupé</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span>VIP</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="stat"><div class="stat-number">10 000+</div><div class="stat-label">Places configurées</div></div>
+  <div class="stat"><div class="stat-number">500+</div><div class="stat-label">Plans de salle créés</div></div>
+  <div class="stat"><div class="stat-number">99,9 %</div><div class="stat-label">Disponibilité</div></div>
+  <div class="stat"><div class="stat-number">3 min</div><div class="stat-label">Pour créer un plan</div></div>
+</div>
+
+<!-- SHOWCASE -->
+<section class="showcase-section">
+  <div class="container">
+    <div class="text-center" style="margin-bottom:3.5rem">
+      <span class="section-tag">Plans de salle</span>
+      <h2 class="section-title">Des plans <span>beaux et précis</span></h2>
+      <p class="section-sub">Théâtres, restaurants, stades — Mitoera s'adapte à chaque configuration avec une fidélité parfaite.</p>
+    </div>
+    <div class="showcase-grid">
+
+      <!-- Theatre -->
+      <div class="showcase-card">
+        <div class="showcase-header">
+          <div class="showcase-dots">
+            <span style="background:#ff5f56"></span>
+            <span style="background:#ffbd2e"></span>
+            <span style="background:#27c93f"></span>
+          </div>
+          <div class="showcase-label">Salle de théâtre · Arc</div>
+        </div>
+        <div class="showcase-body">
+          <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg" class="showcase-svg">
+            <!-- Stage -->
+            <rect x="85" y="160" width="150" height="22" rx="4" fill="#1a7a4a" opacity=".9"/>
+            <text x="160" y="176" text-anchor="middle" font-size="9" fill="white" font-family="sans-serif" font-weight="600">SCÈNE</text>
+            <!-- Arc rows - Row 1 (closest) -->
+            <g fill="none">
+              <!-- Row 1 -->
+              <rect x="110" y="135" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="123" y="133" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="136" y="131" width="10" height="10" rx="2" fill="#c0392b" opacity=".8"/>
+              <rect x="149" y="130" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="162" y="130" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="175" y="130" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="188" y="131" width="10" height="10" rx="2" fill="#c0392b" opacity=".8"/>
+              <rect x="201" y="133" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="213" y="135" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <!-- Row 2 -->
+              <rect x="90" y="118" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="103" y="115" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="116" y="112" width="10" height="10" rx="2" fill="#f59e0b" opacity=".9"/>
+              <rect x="129" y="110" width="10" height="10" rx="2" fill="#f59e0b" opacity=".9"/>
+              <rect x="142" y="108" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="155" y="108" width="10" height="10" rx="2" fill="#c0392b" opacity=".8"/>
+              <rect x="168" y="108" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="181" y="108" width="10" height="10" rx="2" fill="#f59e0b" opacity=".9"/>
+              <rect x="194" y="108" width="10" height="10" rx="2" fill="#f59e0b" opacity=".9"/>
+              <rect x="207" y="110" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="220" y="112" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="233" y="115" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <!-- Row 3 -->
+              <rect x="70" y="100" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="83" y="96" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="96" y="93" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="109" y="90" width="10" height="10" rx="2" fill="#c0392b" opacity=".8"/>
+              <rect x="122" y="88" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="135" y="86" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="148" y="86" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="161" y="85" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="174" y="86" width="10" height="10" rx="2" fill="#c0392b" opacity=".8"/>
+              <rect x="187" y="86" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="200" y="88" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="213" y="90" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="226" y="93" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="239" y="96" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <!-- Row 4 -->
+              <rect x="60" y="72" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="73" y="68" width="10" height="10" rx="2" fill="#c0392b" opacity=".8"/>
+              <rect x="86" y="65" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="99" y="62" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="112" y="60" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="125" y="58" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="138" y="57" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="151" y="56" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="164" y="56" width="10" height="10" rx="2" fill="#c0392b" opacity=".8"/>
+              <rect x="177" y="57" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="190" y="58" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="203" y="60" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="216" y="62" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="229" y="65" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="242" y="68" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="255" y="72" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <!-- Row 5 (back) -->
+              <rect x="50" y="42" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="63" y="38" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="76" y="35" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="89" y="32" width="10" height="10" rx="2" fill="#c0392b" opacity=".8"/>
+              <rect x="102" y="30" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="115" y="28" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="128" y="26" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="141" y="25" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="154" y="24" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="167" y="24" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="180" y="25" width="10" height="10" rx="2" fill="#c0392b" opacity=".8"/>
+              <rect x="193" y="26" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="206" y="28" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="219" y="30" width="10" height="10" rx="2" fill="#6ee7a0"/>
+              <rect x="232" y="32" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="245" y="35" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="258" y="38" width="10" height="10" rx="2" fill="rgba(255,255,255,.18)"/>
+              <rect x="271" y="42" width="10" height="10" rx="2" fill="#6ee7a0"/>
+            </g>
+            <!-- Legend -->
+            <rect x="10" y="168" width="7" height="7" rx="1.5" fill="#6ee7a0"/>
+            <text x="20" y="175" font-size="7" fill="rgba(255,255,255,.6)" font-family="sans-serif">Libre</text>
+            <rect x="48" y="168" width="7" height="7" rx="1.5" fill="#c0392b" opacity=".8"/>
+            <text x="58" y="175" font-size="7" fill="rgba(255,255,255,.6)" font-family="sans-serif">Occupé</text>
+            <rect x="96" y="168" width="7" height="7" rx="1.5" fill="#f59e0b" opacity=".9"/>
+            <text x="106" y="175" font-size="7" fill="rgba(255,255,255,.6)" font-family="sans-serif">VIP</text>
+          </svg>
+        </div>
+        <div class="showcase-footer">Théâtre — 95 places · Vue scène</div>
+      </div>
+
+      <!-- Restaurant -->
+      <div class="showcase-card">
+        <div class="showcase-header">
+          <div class="showcase-dots">
+            <span style="background:#ff5f56"></span>
+            <span style="background:#ffbd2e"></span>
+            <span style="background:#27c93f"></span>
+          </div>
+          <div class="showcase-label">Restaurant · Tables rondes</div>
+        </div>
+        <div class="showcase-body">
+          <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg" class="showcase-svg">
+            <!-- Room outline -->
+            <rect x="10" y="10" width="300" height="180" rx="6" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="1.5"/>
+            <!-- Tables -->
+            <!-- Table 1 -->
+            <circle cx="55" cy="50" r="18" fill="rgba(255,255,255,.08)" stroke="#6ee7a0" stroke-width="1.5"/>
+            <circle cx="55" cy="28" r="6" fill="#6ee7a0"/>
+            <circle cx="55" cy="72" r="6" fill="#6ee7a0"/>
+            <circle cx="33" cy="50" r="6" fill="rgba(255,255,255,.25)"/>
+            <circle cx="77" cy="50" r="6" fill="rgba(255,255,255,.25)"/>
+            <text x="55" y="54" text-anchor="middle" font-size="8" fill="rgba(255,255,255,.7)" font-family="sans-serif" font-weight="600">T1</text>
+            <!-- Table 2 -->
+            <circle cx="140" cy="50" r="18" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.25)" stroke-width="1.5"/>
+            <circle cx="140" cy="28" r="6" fill="#c0392b" opacity=".8"/>
+            <circle cx="140" cy="72" r="6" fill="#c0392b" opacity=".8"/>
+            <circle cx="118" cy="50" r="6" fill="#c0392b" opacity=".8"/>
+            <circle cx="162" cy="50" r="6" fill="#c0392b" opacity=".8"/>
+            <text x="140" y="54" text-anchor="middle" font-size="8" fill="rgba(255,255,255,.7)" font-family="sans-serif" font-weight="600">T2</text>
+            <!-- Table 3 -->
+            <circle cx="225" cy="50" r="18" fill="rgba(255,255,255,.08)" stroke="#f59e0b" stroke-width="1.5"/>
+            <circle cx="225" cy="28" r="6" fill="#f59e0b" opacity=".9"/>
+            <circle cx="225" cy="72" r="6" fill="#f59e0b" opacity=".9"/>
+            <circle cx="203" cy="50" r="6" fill="rgba(255,255,255,.25)"/>
+            <circle cx="247" cy="50" r="6" fill="rgba(255,255,255,.25)"/>
+            <text x="225" y="54" text-anchor="middle" font-size="8" fill="rgba(255,255,255,.7)" font-family="sans-serif" font-weight="600">T3</text>
+            <!-- Table 4 -->
+            <circle cx="55" cy="130" r="18" fill="rgba(255,255,255,.08)" stroke="#6ee7a0" stroke-width="1.5"/>
+            <circle cx="55" cy="108" r="6" fill="rgba(255,255,255,.25)"/>
+            <circle cx="55" cy="152" r="6" fill="#6ee7a0"/>
+            <circle cx="33" cy="130" r="6" fill="#6ee7a0"/>
+            <circle cx="77" cy="130" r="6" fill="rgba(255,255,255,.25)"/>
+            <text x="55" y="134" text-anchor="middle" font-size="8" fill="rgba(255,255,255,.7)" font-family="sans-serif" font-weight="600">T4</text>
+            <!-- Table 5 -->
+            <circle cx="140" cy="130" r="18" fill="rgba(255,255,255,.08)" stroke="#6ee7a0" stroke-width="1.5"/>
+            <circle cx="140" cy="108" r="6" fill="#6ee7a0"/>
+            <circle cx="140" cy="152" r="6" fill="rgba(255,255,255,.25)"/>
+            <circle cx="118" cy="130" r="6" fill="#c0392b" opacity=".8"/>
+            <circle cx="162" cy="130" r="6" fill="#6ee7a0"/>
+            <text x="140" y="134" text-anchor="middle" font-size="8" fill="rgba(255,255,255,.7)" font-family="sans-serif" font-weight="600">T5</text>
+            <!-- Table 6 -->
+            <circle cx="225" cy="130" r="18" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.25)" stroke-width="1.5"/>
+            <circle cx="225" cy="108" r="6" fill="#c0392b" opacity=".8"/>
+            <circle cx="225" cy="152" r="6" fill="#c0392b" opacity=".8"/>
+            <circle cx="203" cy="130" r="6" fill="#c0392b" opacity=".8"/>
+            <circle cx="247" cy="130" r="6" fill="#c0392b" opacity=".8"/>
+            <text x="225" y="134" text-anchor="middle" font-size="8" fill="rgba(255,255,255,.7)" font-family="sans-serif" font-weight="600">T6</text>
+            <!-- Bar counter -->
+            <rect x="266" y="25" width="34" height="155" rx="4" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.15)" stroke-width="1"/>
+            <text x="283" y="110" text-anchor="middle" font-size="7" fill="rgba(255,255,255,.4)" font-family="sans-serif" transform="rotate(90,283,110)">BAR</text>
+          </svg>
+        </div>
+        <div class="showcase-footer">Restaurant — 24 couverts · Tables rondes</div>
+      </div>
+
+      <!-- Stadium -->
+      <div class="showcase-card">
+        <div class="showcase-header">
+          <div class="showcase-dots">
+            <span style="background:#ff5f56"></span>
+            <span style="background:#ffbd2e"></span>
+            <span style="background:#27c93f"></span>
+          </div>
+          <div class="showcase-label">Stade · Tribune Nord</div>
+        </div>
+        <div class="showcase-body">
+          <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg" class="showcase-svg">
+            <!-- Section labels -->
+            <rect x="8" y="8" width="304" height="184" rx="5" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1"/>
+            <!-- Section A (left) green -->
+            <rect x="14" y="18" width="85" height="168" rx="4" fill="rgba(26,122,74,.15)" stroke="#1a7a4a" stroke-width="1"/>
+            <text x="56" y="108" text-anchor="middle" font-size="10" fill="#6ee7a0" font-family="sans-serif" font-weight="700">A</text>
+            <!-- Section B (middle) warm/selected -->
+            <rect x="106" y="18" width="108" height="168" rx="4" fill="rgba(192,57,43,.1)" stroke="#c0392b" stroke-width="1"/>
+            <text x="160" y="108" text-anchor="middle" font-size="10" fill="#ef9898" font-family="sans-serif" font-weight="700">B</text>
+            <!-- Section C (right) neutral -->
+            <rect x="221" y="18" width="85" height="168" rx="4" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.15)" stroke-width="1"/>
+            <text x="263" y="108" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.4)" font-family="sans-serif" font-weight="700">C</text>
+            <!-- Seat grid section A -->
+            <g fill="#6ee7a0">
+              <rect x="18" y="26" width="7" height="7" rx="1"/><rect x="27" y="26" width="7" height="7" rx="1"/><rect x="36" y="26" width="7" height="7" rx="1"/><rect x="45" y="26" width="7" height="7" rx="1"/><rect x="54" y="26" width="7" height="7" rx="1"/><rect x="63" y="26" width="7" height="7" rx="1"/><rect x="72" y="26" width="7" height="7" rx="1"/><rect x="81" y="26" width="7" height="7" rx="1"/>
+              <rect x="18" y="36" width="7" height="7" rx="1"/><rect x="27" y="36" width="7" height="7" rx="1"/><rect x="36" y="36" width="7" height="7" rx="1" fill="#c0392b" opacity=".8"/><rect x="45" y="36" width="7" height="7" rx="1"/><rect x="54" y="36" width="7" height="7" rx="1"/><rect x="63" y="36" width="7" height="7" rx="1"/><rect x="72" y="36" width="7" height="7" rx="1"/><rect x="81" y="36" width="7" height="7" rx="1"/>
+              <rect x="18" y="46" width="7" height="7" rx="1"/><rect x="27" y="46" width="7" height="7" rx="1"/><rect x="36" y="46" width="7" height="7" rx="1"/><rect x="45" y="46" width="7" height="7" rx="1" fill="#c0392b" opacity=".8"/><rect x="54" y="46" width="7" height="7" rx="1"/><rect x="63" y="46" width="7" height="7" rx="1"/><rect x="72" y="46" width="7" height="7" rx="1" fill="#c0392b" opacity=".8"/><rect x="81" y="46" width="7" height="7" rx="1"/>
+            </g>
+            <!-- Seat grid section B (mostly occupied) -->
+            <g fill="#c0392b" opacity=".75">
+              <rect x="110" y="26" width="7" height="7" rx="1"/><rect x="119" y="26" width="7" height="7" rx="1"/><rect x="128" y="26" width="7" height="7" rx="1"/><rect x="137" y="26" width="7" height="7" rx="1"/><rect x="146" y="26" width="7" height="7" rx="1"/><rect x="155" y="26" width="7" height="7" rx="1"/><rect x="164" y="26" width="7" height="7" rx="1"/><rect x="173" y="26" width="7" height="7" rx="1"/><rect x="182" y="26" width="7" height="7" rx="1"/><rect x="191" y="26" width="7" height="7" rx="1"/><rect x="200" y="26" width="7" height="7" rx="1"/>
+              <rect x="110" y="36" width="7" height="7" rx="1"/><rect x="119" y="36" width="7" height="7" rx="1"/><rect x="128" y="36" width="7" height="7" rx="1" fill="#6ee7a0" opacity="1"/><rect x="137" y="36" width="7" height="7" rx="1"/><rect x="146" y="36" width="7" height="7" rx="1"/><rect x="155" y="36" width="7" height="7" rx="1"/><rect x="164" y="36" width="7" height="7" rx="1"/><rect x="173" y="36" width="7" height="7" rx="1"/><rect x="182" y="36" width="7" height="7" rx="1"/><rect x="191" y="36" width="7" height="7" rx="1"/><rect x="200" y="36" width="7" height="7" rx="1"/>
+              <rect x="110" y="46" width="7" height="7" rx="1"/><rect x="119" y="46" width="7" height="7" rx="1"/><rect x="128" y="46" width="7" height="7" rx="1"/><rect x="137" y="46" width="7" height="7" rx="1" fill="#6ee7a0" opacity="1"/><rect x="146" y="46" width="7" height="7" rx="1"/><rect x="155" y="46" width="7" height="7" rx="1"/><rect x="164" y="46" width="7" height="7" rx="1"/><rect x="173" y="46" width="7" height="7" rx="1" fill="#6ee7a0" opacity="1"/><rect x="182" y="46" width="7" height="7" rx="1"/><rect x="191" y="46" width="7" height="7" rx="1"/><rect x="200" y="46" width="7" height="7" rx="1"/>
+            </g>
+            <!-- Seat grid section C (mostly free) -->
+            <g fill="rgba(255,255,255,.22)">
+              <rect x="225" y="26" width="7" height="7" rx="1"/><rect x="234" y="26" width="7" height="7" rx="1"/><rect x="243" y="26" width="7" height="7" rx="1"/><rect x="252" y="26" width="7" height="7" rx="1"/><rect x="261" y="26" width="7" height="7" rx="1"/><rect x="270" y="26" width="7" height="7" rx="1"/><rect x="279" y="26" width="7" height="7" rx="1"/><rect x="288" y="26" width="7" height="7" rx="1"/>
+              <rect x="225" y="36" width="7" height="7" rx="1"/><rect x="234" y="36" width="7" height="7" rx="1"/><rect x="243" y="36" width="7" height="7" rx="1"/><rect x="252" y="36" width="7" height="7" rx="1"/><rect x="261" y="36" width="7" height="7" rx="1"/><rect x="270" y="36" width="7" height="7" rx="1"/><rect x="279" y="36" width="7" height="7" rx="1"/><rect x="288" y="36" width="7" height="7" rx="1"/>
+              <rect x="225" y="46" width="7" height="7" rx="1"/><rect x="234" y="46" width="7" height="7" rx="1"/><rect x="243" y="46" width="7" height="7" rx="1"/><rect x="252" y="46" width="7" height="7" rx="1"/><rect x="261" y="46" width="7" height="7" rx="1"/><rect x="270" y="46" width="7" height="7" rx="1"/><rect x="279" y="46" width="7" height="7" rx="1"/><rect x="288" y="46" width="7" height="7" rx="1"/>
+            </g>
+            <!-- Occupation bar -->
+            <rect x="14" y="170" width="280" height="6" rx="3" fill="rgba(255,255,255,.1)"/>
+            <rect x="14" y="170" width="168" height="6" rx="3" fill="#1a7a4a"/>
+            <text x="14" y="185" font-size="7.5" fill="rgba(255,255,255,.5)" font-family="sans-serif">Occupation : 60% · 462 / 770 places</text>
+          </svg>
+        </div>
+        <div class="showcase-footer">Stade — 770 places · Tribune nord · 3 sections</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features-bg" id="features">
+  <div class="container">
+    <div class="text-center">
+      <span class="section-tag">Fonctionnalités</span>
+      <h2 class="section-title">Tout ce dont vous avez <span>besoin</span></h2>
+      <p class="section-sub">Un outil complet pour concevoir vos plans de salle et piloter la disponibilité de chaque place, sans complexité.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon green">🗺️</div>
+        <h3>Éditeur de plans visuel</h3>
+        <p>Dessinez votre salle, placez vos sièges, créez des sections et des catégories (standard, VIP, PMR…) avec un éditeur intuitif.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon red">🪑</div>
+        <h3>Disponibilité en temps réel</h3>
+        <p>Chaque place est libre, occupée ou réservée. L'état se met à jour instantanément pour tous les utilisateurs connectés — aucun doublon possible.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon green">📊</div>
+        <h3>Suivi d'occupation</h3>
+        <p>Visualisez le taux de remplissage de vos salles, identifiez les zones les plus demandées et optimisez votre agencement.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon red">🔗</div>
+        <h3>Widget intégrable</h3>
+        <p>Embarquez le plan interactif directement sur votre site en une ligne de code. Vos visiteurs choisissent leur place sans quitter votre page.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon green">⚙️</div>
+        <h3>API REST complète</h3>
+        <p>Gérez les places, lisez les disponibilités et mettez à jour les statuts depuis n'importe quelle application via notre API documentée.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon red">📱</div>
+        <h3>Multi-appareils</h3>
+        <p>Vos gestionnaires administrent depuis un ordinateur, vos clients sélectionnent leur place depuis leur téléphone.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="container">
+    <div class="text-center">
+      <span class="section-tag">Processus</span>
+      <h2 class="section-title">Comment ça <span>marche</span> ?</h2>
+      <p class="section-sub">De la conception du plan à la sélection des places, tout est prêt en quelques minutes.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <h3>Dessinez votre salle</h3>
+        <p>Créez votre plan avec l'éditeur visuel : ajoutez des rangées, des sections, des zones et nommez chaque place.</p>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <h3>Définissez les catégories</h3>
+        <p>Attribuez des catégories à vos places (standard, VIP, PMR…) et configurez leurs statuts par défaut.</p>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <h3>Intégrez le widget</h3>
+        <p>Copiez une ligne de code et collez-la sur votre site. Le plan apparaît, interactif et à jour, pour vos visiteurs.</p>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <h3>Pilotez en direct</h3>
+        <p>Suivez l'occupation en temps réel et modifiez les statuts des places à tout moment depuis votre tableau de bord.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing-bg" id="pricing">
+  <div class="container">
+    <div class="text-center">
+      <span class="section-tag">Tarifs</span>
+      <h2 class="section-title">Des tarifs <span>transparents</span></h2>
+      <p class="section-sub">Choisissez le plan qui correspond à la taille de votre salle. Pas de frais cachés.</p>
+    </div>
+    <div class="pricing-grid">
+      <div class="pricing-card">
+        <div class="pricing-plan">Starter</div>
+        <div class="pricing-price">29 €<span> / mois</span></div>
+        <div class="pricing-desc">Idéal pour une petite salle ou un usage ponctuel.</div>
+        <ul class="pricing-features">
+          <li>Jusqu'à 500 places actives</li>
+          <li>1 workspace</li>
+          <li>Widget intégrable</li>
+          <li>Plans de salle illimités</li>
+          <li>Accès API</li>
+        </ul>
+        <a href="#" class="btn-plan outline">Commencer</a>
+      </div>
+      <div class="pricing-card featured">
+        <div class="pricing-badge">⭐ Populaire</div>
+        <div class="pricing-plan">Pro</div>
+        <div class="pricing-price">99 €<span> / mois</span></div>
+        <div class="pricing-desc">Pour les salles moyennes avec plusieurs espaces.</div>
+        <ul class="pricing-features">
+          <li>Jusqu'à 2 000 places actives</li>
+          <li>5 workspaces</li>
+          <li>Widget intégrable</li>
+          <li>Suivi d'occupation avancé</li>
+          <li>Support prioritaire</li>
+        </ul>
+        <a href="#" class="btn-plan solid">Commencer</a>
+      </div>
+      <div class="pricing-card">
+        <div class="pricing-plan">Enterprise</div>
+        <div class="pricing-price">299 €<span> / mois</span></div>
+        <div class="pricing-desc">Pour les grandes salles et structures multi-sites.</div>
+        <ul class="pricing-features">
+          <li>Jusqu'à 10 000 places actives</li>
+          <li>Workspaces illimités</li>
+          <li>API & webhooks avancés</li>
+          <li>Support dédié 24/7</li>
+          <li>SLA 99,9 %</li>
+        </ul>
+        <a href="#" class="btn-plan outline">Nous contacter</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section>
+  <div class="container">
+    <div class="text-center">
+      <span class="section-tag">Témoignages</span>
+      <h2 class="section-title">Ils nous font <span>confiance</span></h2>
+      <p class="section-sub">Salles de spectacle, restaurants, cinémas — ils ont adopté Mitoera pour gérer leurs places.</p>
+    </div>
+    <div class="testimonials-grid">
+      <div class="testimonial">
+        <div class="stars">★★★★★</div>
+        <p>"On gère une salle de 600 places. Avant Mitoera, on faisait ça sur papier. Maintenant le plan est en ligne, nos clients choisissent leur siège eux-mêmes et on voit l'occupation en direct."</p>
+        <div class="testimonial-author">
+          <div class="avatar" style="background:var(--green)">RL</div>
+          <div>
+            <div class="author-name">Rija Lalaina</div>
+            <div class="author-role">Directeur de salle de spectacle</div>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial">
+        <div class="stars">★★★★★</div>
+        <p>"On a intégré le widget en 10 minutes sur notre site. Nos clients visualisent exactement la disposition de la salle et choisissent leur table. Zéro appel inutile."</p>
+        <div class="testimonial-author">
+          <div class="avatar" style="background:var(--red)">FM</div>
+          <div>
+            <div class="author-name">Fara Mialy</div>
+            <div class="author-role">Gérante de restaurant</div>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial">
+        <div class="stars">★★★★★</div>
+        <p>"L'API est propre et bien documentée. On a connecté Mitoera à notre propre système en deux jours. La mise à jour des statuts de places en temps réel est impressionnante."</p>
+        <div class="testimonial-author">
+          <div class="avatar" style="background:#1d4ed8">AR</div>
+          <div>
+            <div class="author-name">Andry Rakoto</div>
+            <div class="author-role">Développeur Web</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<div class="cta-banner">
+  <h2>Votre plan de salle en ligne<br>en moins de 5 minutes</h2>
+  <p>Dessinez, publiez, laissez vos clients choisir leur place. Sans installation, sans complexité.</p>
+  <a href="#" class="btn-white">Créer mon plan gratuitement →</a>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="footer-logo"><span class="footer-logo-dot"></span> Mitoera</div>
+      <p>L'application de plans de salle interactifs pour gérer la disponibilité des places en temps réel.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Produit</h4>
+      <ul>
+        <li><a href="#features">Fonctionnalités</a></li>
+        <li><a href="#pricing">Tarifs</a></li>
+        <li><a href="#how">Comment ça marche</a></li>
+        <li><a href="#">Connexion</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Ressources</h4>
+      <ul>
+        <li><a href="#">Documentation API</a></li>
+        <li><a href="#">Intégration widget</a></li>
+        <li><a href="#">Guide de démarrage</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Entreprise</h4>
+      <ul>
+        <li><a href="#">À propos</a></li>
+        <li><a href="#">Contact</a></li>
+        <li><a href="#">Mentions légales</a></li>
+        <li><a href="#">Confidentialité</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 Mitoera. Tous droits réservés.</span>
+    <span style="color:rgba(255,255,255,.35)">Conçu par <strong style="color:rgba(255,255,255,.55)">Irytech</strong></span>
+  </div>
+</footer>
+<script>
+(function(){
+  const canvas = document.getElementById('hero-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let W, H, nodes;
+
+  function resize() {
+    W = canvas.width  = canvas.offsetWidth;
+    H = canvas.height = canvas.offsetHeight;
+    init();
+  }
+
+  function init() {
+    nodes = Array.from({length: 72}, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: (Math.random() - .5) * .35,
+      vy: (Math.random() - .5) * .35,
+      r: Math.random() * 2 + 1,
+      pulse: Math.random() * Math.PI * 2,
+      speed: .01 + Math.random() * .02,
+      type: Math.random() < .15 ? 'bright' : Math.random() < .3 ? 'mid' : 'dim',
+    }));
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Draw connections
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < 130) {
+          const alpha = (1 - dist / 130) * .18;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.strokeStyle = `rgba(110,231,160,${alpha})`;
+          ctx.lineWidth = .8;
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Draw nodes
+    for (const n of nodes) {
+      n.pulse += n.speed;
+      const glow = (Math.sin(n.pulse) + 1) / 2;
+
+      let baseAlpha, color;
+      if (n.type === 'bright') {
+        baseAlpha = .7 + glow * .3;
+        color = `rgba(110,231,160,${baseAlpha})`;
+      } else if (n.type === 'mid') {
+        baseAlpha = .25 + glow * .25;
+        color = `rgba(110,231,160,${baseAlpha})`;
+      } else {
+        baseAlpha = .08 + glow * .1;
+        color = `rgba(180,255,210,${baseAlpha})`;
+      }
+
+      if (n.type === 'bright') {
+        // glow halo
+        const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r * 8);
+        grad.addColorStop(0, `rgba(110,231,160,${.15 * glow})`);
+        grad.addColorStop(1, 'rgba(110,231,160,0)');
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r * 8, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+
+      // move
+      n.x += n.vx; n.y += n.vy;
+      if (n.x < 0) n.x = W;
+      if (n.x > W) n.x = 0;
+      if (n.y < 0) n.y = H;
+      if (n.y > H) n.y = 0;
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  draw();
+})();
+</script>
