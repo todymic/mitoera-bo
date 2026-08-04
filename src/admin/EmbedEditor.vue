@@ -13,6 +13,9 @@ const plan = ref(null);
 
 onMounted(async () => {
   if (!planId) { error.value = "Paramètre planId manquant dans l'URL"; return; }
+  // Token transmis depuis hetsika-bo — auto-login
+  const urlToken = new URLSearchParams(window.location.search).get('token');
+  if (urlToken) auth.setToken(urlToken);
   if (!auth.isLoggedIn()) { error.value = 'Non authentifié (token manquant)'; return; }
   try {
     const venues = await adminApi.listVenues();

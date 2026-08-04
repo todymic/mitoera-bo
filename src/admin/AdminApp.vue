@@ -4,6 +4,10 @@ import { useRoute } from 'vue-router';
 import { auth } from './services/auth.js';
 import LoginView from './components/LoginView.vue';
 
+// Token passé en URL depuis hetsika-bo (?token=...) — auto-login sans formulaire
+const urlToken = new URLSearchParams(window.location.search).get('token');
+if (urlToken) auth.setToken(urlToken);
+
 const isLoggedIn = auth.loggedIn;
 function onLoggedIn() { isLoggedIn.value = true; }
 function logout() { auth.clear(); }

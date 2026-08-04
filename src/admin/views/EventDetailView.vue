@@ -63,8 +63,9 @@ function applyChanges(changes) {
 }
 
 function connectFirestore() {
+  const firestoreId = eventDetail.value?.id || eventId.value;
   unsubscribeFirestore?.();
-  unsubscribeFirestore = subscribeToSeatStatuses(eventId.value, (changes) => {
+  unsubscribeFirestore = subscribeToSeatStatuses(firestoreId, (changes) => {
     applyChanges(changes);
     if (window.parent !== window) {
       window.parent.postMessage({ type: 'placio:seat-update', payload: changes }, '*');
