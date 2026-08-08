@@ -150,49 +150,6 @@ function go(m) { clearMessages(); mode.value = m; }
           {{ loading ? 'Connexion…' : 'Se connecter' }}
         </button>
 
-        <p class="text-xs text-center text-gray-400 mt-4">
-          Pas encore de compte ?
-          <button @click="go('register')" class="text-indigo-500 hover:underline font-medium">S'inscrire</button>
-        </p>
-      </template>
-
-      <!-- Register -->
-      <template v-else-if="mode === 'register'">
-        <h1 class="text-xl font-bold text-gray-800 mb-1">Créer un compte</h1>
-        <p class="text-xs text-gray-400 mb-6">Rejoignez Placio pour gérer vos événements</p>
-
-        <p v-if="error" class="text-xs text-red-500 mb-4 bg-red-50 p-2 rounded-lg">{{ error }}</p>
-
-        <div class="flex gap-2 mb-3">
-          <div class="flex-1">
-            <label class="text-sm font-semibold text-gray-500">Prénom</label>
-            <input v-model="firstName" type="text" placeholder="Jean"
-              class="w-full mt-1 px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:border-gray-400" />
-          </div>
-          <div class="flex-1">
-            <label class="text-sm font-semibold text-gray-500">Nom</label>
-            <input v-model="lastName" type="text" placeholder="Dupont"
-              class="w-full mt-1 px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:border-gray-400" />
-          </div>
-        </div>
-
-        <label class="text-sm font-semibold text-gray-500">Email</label>
-        <input v-model="regEmail" type="email" placeholder="jean@example.com"
-          class="w-full mt-1 mb-3 px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:border-gray-400" />
-
-        <label class="text-sm font-semibold text-gray-500">Mot de passe</label>
-        <input v-model="regPassword" type="password" placeholder="8 caractères minimum" @keyup.enter="submitRegister"
-          class="w-full mt-1 mb-5 px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:border-gray-400" />
-
-        <button :disabled="loading" @click="submitRegister"
-          class="w-full py-3 rounded-lg bg-indigo-600 text-white text-base font-semibold hover:bg-indigo-700 disabled:opacity-50">
-          {{ loading ? 'Création…' : 'Créer mon compte' }}
-        </button>
-
-        <p class="text-xs text-center text-gray-400 mt-4">
-          Déjà un compte ?
-          <button @click="go('login')" class="text-indigo-500 hover:underline font-medium">Se connecter</button>
-        </p>
       </template>
 
       <!-- Forgot password -->
