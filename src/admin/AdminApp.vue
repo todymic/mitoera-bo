@@ -1,16 +1,15 @@
 <script setup>
 import { computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { auth } from './services/auth.js';
-import LoginView from './components/LoginView.vue';
 
 // Token passé en URL depuis hetsika-bo (?token=...) — auto-login sans formulaire
 const urlToken = new URLSearchParams(window.location.search).get('token');
 if (urlToken) auth.setToken(urlToken);
 
 const isLoggedIn = auth.loggedIn;
-function onLoggedIn() { isLoggedIn.value = true; }
-function logout() { auth.clear(); }
+const router = useRouter();
+function logout() { auth.clear(); router.push({ name: 'login' }); }
 
 const route = useRoute();
 const isEmbed = computed(() => route.query.embed === 'true');
@@ -62,10 +61,12 @@ const navItems = [
 </script>
 
 <template>
-  <LoginView v-if="!isLoggedIn" @logged-in="onLoggedIn" />
-
   <!-- Mode embed : contenu seul, sans chrome -->
-  <div v-else-if="isEmbed" class="h-screen flex flex-col overflow-hidden">
+  <div v-if="isEmbed" class="h-screen flex flex-col overflow-hidden">
+    <RouterView />
+  </div>
+
+  <div v-else-if="!isLoggedIn" class="min-h-screen">
     <RouterView />
   </div>
 

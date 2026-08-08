@@ -53,6 +53,7 @@ export async function apiFetch(url, options = {}) {
 
   if (res.status === 401) {
     auth.clear();
+    window.location.href = '/admin/login';
     throw new Error('SESSION_EXPIRED');
   }
 

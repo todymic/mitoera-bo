@@ -1,8 +1,9 @@
 <script setup>
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { auth } from '../services/auth.js';
 
-const emit = defineEmits(['logged-in']);
+const router = useRouter();
 
 // 'login' | 'register' | 'forgot' | 'reset'
 const mode = ref('login');
@@ -36,7 +37,7 @@ async function submitLogin() {
   loading.value = true;
   try {
     await auth.login(loginEmail.value, loginPassword.value);
-    emit('logged-in');
+    router.push({ name: 'home' });
   } catch (e) {
     error.value = e.message;
   } finally {
