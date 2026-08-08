@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { adminApi } from '../services/adminApi.js';
+import { subscribeToSeatStatuses } from '../services/firestore.js';
 
 import { computeAxisLabel } from '../../services/seatLabel.js';
 import EventPlanView from '../components/EventPlanView.vue';
@@ -18,6 +19,7 @@ const loading      = ref(false);
 const activeTab    = ref(route.query.embed === 'true' ? 'status' : 'summary');
 const selectedSeats = ref(new Set());
 const updating     = ref(false);
+const publicKey    = ref(null);
 
 const TABS = [
   { id: 'summary',    label: 'Résumé' },
@@ -26,24 +28,31 @@ const TABS = [
   { id: 'categories', label: 'Catégories' },
 ];
 
+const widgetUrl = computed(() => {
+  if (!publicKey.value || !eventDetail.value?.id) return null;
+  const base = window.location.origin.replace(':3000', ':8000');
+  return `${base}/render.html?key=${publicKey.value}&event=${eventDetail.value.id}`;
+});
+
 async function load() {
   loading.value = true;
   try {
-    eventDetail.value = await adminApi.getEvent(eventId.value);
-    event.value = eventDetail.value;
-    if (eventDetail.value?.chartId) {
-      categories.value = await adminApi.listCategories(eventDetail.value.chartId);
+    const [detail, keys] = await Promise.all([
+      adminApi.getEvent(eventId.value),
+      adminApi.listApiKeys(),
+    ]);
+    eventDetail.value = detail;
+    event.value = detail;
+    publicKey.value = keys.find(k => k.scope === 'public' && k.active)?.keyId ?? null;
+    if (detail?.chartId) {
+      categories.value = await adminApi.listCategories(detail.chartId);
     }
   } finally { loading.value = false; }
 }
 
-let mercureSource = null;
+let unsubscribeFirestore = null;
 
-function applyChanges(data) {
-  // Normalise les deux formats : [{seatKey,status}] ou {seatKeys:[],status:''}
-  const changes = Array.isArray(data)
-    ? data
-    : (data.seatKeys || []).map(k => ({ seatKey: k, status: data.status }));
+function applyChanges(changes) {
   const seats = (eventDetail.value?.seats || []).map(s => ({ ...s }));
   for (const change of changes) {
     const existing = seats.find(s => s.seatKey === change.seatKey);
@@ -53,34 +62,24 @@ function applyChanges(data) {
   eventDetail.value = { ...eventDetail.value, seats };
 }
 
-function connectSSE() {
-  const mercureBase = import.meta.env.VITE_MERCURE_URL || `${window.location.origin}/.well-known/mercure`;
-  const url = new URL(mercureBase);
-  url.searchParams.append('topic', `event/${eventId.value}/seats`);
-  mercureSource = new EventSource(url.toString());
-  mercureSource.onmessage = (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      applyChanges(data);
-      if (window.parent !== window) {
-        window.parent.postMessage({ type: 'placio:seat-update', payload: data }, '*');
-      }
-    } catch (_) {}
-  };
-  mercureSource.onerror = () => {
-    mercureSource?.close();
-    mercureSource = null;
-    setTimeout(connectSSE, 3000);
-  };
+function connectFirestore() {
+  const firestoreId = eventDetail.value?.id || eventId.value;
+  unsubscribeFirestore?.();
+  unsubscribeFirestore = subscribeToSeatStatuses(firestoreId, (changes) => {
+    applyChanges(changes);
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'placio:seat-update', payload: changes }, '*');
+    }
+  });
 }
 
 onMounted(async () => {
   await load();
-  connectSSE();
+  connectFirestore();
 });
 
 onUnmounted(() => {
-  mercureSource?.close();
+  unsubscribeFirestore?.();
 });
 
 const seatStatusMap = computed(() => {
@@ -221,21 +220,10 @@ async function applyStatus(status) {
     if (status === 'canceled')  keys = keys.filter(k => (seatStatusMap.value[k] || 'available') === 'available');
   }
   if (!keys.length) return;
-  // Snapshot des hold Mercure-only (pas dans les keys à modifier) avant rechargement DB
-  const holdSnapshot = Object.entries(seatStatusMap.value)
-    .filter(([k, v]) => v === 'hold' && !keys.includes(k))
-    .map(([seatKey]) => ({ seatKey, status: 'hold' }));
-
   updating.value = true;
   try {
     await adminApi.bulkUpdateEventSeats(eventId.value, keys, status);
     eventDetail.value = await adminApi.getEvent(eventId.value);
-    // Ré-applique uniquement les hold Mercure-only (DB dit "available" = pas en DB)
-    // Les hold réels en DB sont déjà corrects après rechargement, on ne les écrase pas
-    const mercureOnlyHolds = holdSnapshot.filter(
-      ({ seatKey }) => (seatStatusMap.value[seatKey] || 'available') === 'available'
-    );
-    if (mercureOnlyHolds.length) applyChanges(mercureOnlyHolds);
     selectedSeats.value = new Set();
   } finally { updating.value = false; }
 }
@@ -255,6 +243,13 @@ async function applyStatus(status) {
         <span class="text-gray-400">/</span>
         <span class="font-semibold text-gray-800 truncate max-w-[160px] sm:max-w-none">{{ event?.title || '…' }}</span>
         <span v-if="event?.chartName" class="text-xs text-gray-400 hidden sm:inline">— {{ event.chartName }}</span>
+        <a v-if="widgetUrl" :href="widgetUrl" target="_blank"
+          class="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+          </svg>
+          Aperçu widget
+        </a>
       </div>
       <div class="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
         <button v-for="tab in TABS" :key="tab.id"

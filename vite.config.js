@@ -1,10 +1,29 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
-import { resolve } from 'path';
+import { resolve, extname } from 'path';
+
+// Le back-office est une SPA montée sur /admin (voir src/admin/router.js,
+// createWebHistory('/admin/')). Vite ne sert que des fichiers .html statiques,
+// donc /admin, /admin/events, /admin/plans/:id, etc. doivent être réécrits
+// vers admin.html pour que le rechargement/deep-link fonctionne.
+function adminHistoryFallback() {
+  function rewrite(req, _res, next) {
+    const [pathname, query = ''] = req.url.split('?');
+    if ((pathname === '/admin' || pathname.startsWith('/admin/')) && !extname(pathname)) {
+      req.url = '/admin.html' + (query ? '?' + query : '');
+    }
+    next();
+  }
+  return {
+    name: 'admin-history-fallback',
+    configureServer(server) { server.middlewares.use(rewrite); },
+    configurePreviewServer(server) { server.middlewares.use(rewrite); },
+  };
+}
 
 export default defineConfig({
   base: '/',
-  plugins: [vue()],
+  plugins: [vue(), adminHistoryFallback()],
   server: {
     port: 5173,
     https: {

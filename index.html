@@ -421,22 +421,15 @@
   }
   .nav__mobile.is-open { display: flex; }
   .nav__mobile a { text-decoration: none; font-family: var(--font-display); font-size: 1.6rem; color: var(--text); }
-
   /* Contact */
   .contact__inner { max-width: 78rem; margin: 0 auto; display: grid; grid-template-columns: 1fr 1.4fr; gap: 4rem; align-items: start; }
   .contact__info { padding-top: 0.5rem; }
   .contact__info h2 { font-size: clamp(1.9rem, 3vw, 2.6rem); margin-bottom: 1rem; }
   .contact__info .lead { margin-bottom: 2rem; }
   .contact__channels { display: flex; flex-direction: column; gap: 1rem; }
-  .contact__channel {
-    display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem 1.1rem;
-    background: var(--bg-raised); border: 1px solid var(--line); border-radius: 14px;
-    text-decoration: none; color: var(--text); transition: transform 0.3s cubic-bezier(0.22,1,0.36,1), box-shadow 0.3s ease, border-color 0.3s ease;
-  }
+  .contact__channel { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem 1.1rem; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 14px; text-decoration: none; color: var(--text); transition: transform 0.3s cubic-bezier(0.22,1,0.36,1), box-shadow 0.3s ease, border-color 0.3s ease; }
   .contact__channel:hover { transform: translateX(4px); box-shadow: var(--shadow-sm); border-color: var(--line-strong); }
-  .contact__channel-icon {
-    width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  }
+  .contact__channel-icon { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .contact__channel-icon--wa { background: #e7f7ef; color: #25D366; }
   .contact__channel-icon--mail { background: var(--green-tint); color: var(--green); }
   .contact__channel-label { font-size: 0.78rem; color: var(--text-muted); }
@@ -444,14 +437,8 @@
   .contact__form { background: var(--bg-raised); border: 1px solid var(--line); border-radius: 20px; padding: 2rem; box-shadow: var(--shadow-sm); }
   .form__row { margin-bottom: 1.2rem; }
   .form__row label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.45rem; letter-spacing: 0.03em; }
-  .form__row input, .form__row textarea, .form__row select {
-    width: 100%; padding: 0.7rem 0.95rem; background: var(--bg); border: 1px solid var(--line);
-    border-radius: 10px; font-family: inherit; font-size: 0.95rem; color: var(--text);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease; outline: none; box-sizing: border-box;
-  }
-  .form__row input:focus, .form__row textarea:focus, .form__row select:focus {
-    border-color: var(--green); box-shadow: 0 0 0 3px var(--green-tint);
-  }
+  .form__row input, .form__row textarea, .form__row select { width: 100%; padding: 0.7rem 0.95rem; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; font-family: inherit; font-size: 0.95rem; color: var(--text); transition: border-color 0.2s ease, box-shadow 0.2s ease; outline: none; box-sizing: border-box; }
+  .form__row input:focus, .form__row textarea:focus, .form__row select:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-tint); }
   .form__row textarea { resize: vertical; min-height: 7rem; }
   .form__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
   .form__notice { font-size: 0.76rem; color: var(--text-muted); margin-top: 0.75rem; }
@@ -462,7 +449,6 @@
   @media (max-width: 960px) { .contact__inner { grid-template-columns: 1fr; } }
   @media (max-width: 720px) { .form__grid { grid-template-columns: 1fr; } }
 </style>
-<!-- reCAPTCHA v3 — remplacer 6LdsvXstAAAAADO1phiuq2zxAeEzDZwinrOs_Yft par la vraie clé Google reCAPTCHA -->
 <script src="https://www.google.com/recaptcha/api.js?render=6LdsvXstAAAAADO1phiuq2zxAeEzDZwinrOs_Yft" async defer></script>
 </head>
 <body>
@@ -500,7 +486,7 @@
       <div class="hero__copy reveal">
         <p class="eyebrow">Billetterie &amp; plans de salle</p>
         <h1>Dessinez votre salle.<br><em>Vendez chaque place.</em></h1>
-        <p class="lead">Mitoera transforme n'importe quelle salle — stade, théâtre, amphithéâtre — en un plan interactif que vos clients réservent siège par siège, en quelques secondes.</p>
+        <p class="lead">Mitoera transforme n'importe quelle salle malgache — stade, théâtre, amphithéâtre — en un plan interactif que vos clients réservent siège par siège, en quelques secondes.</p>
         <div class="hero__ctas">
           <a class="btn btn--primary btn--lg" href="/admin">Commencer gratuitement</a>
           <a class="btn btn--outline btn--lg" href="#editor">Voir l'éditeur en action ↓</a>
@@ -534,6 +520,10 @@
       <p class="eyebrow">L'éditeur de plan de salle</p>
       <h2>Chaque siège, <em>à sa place exacte.</em></h2>
       <p class="lead" style="margin-left:auto;margin-right:auto;">Ajoutez vos rangées, coloriez vos catégories, ajustez vos tarifs. Essayez le plan ci-dessous comme le ferait l'un de vos clients.</p>
+      <div style="display:flex;gap:1.5rem;justify-content:center;margin-top:1.4rem;flex-wrap:wrap;">
+        <a href="/embed-editor.html" style="font-size:0.88rem;font-weight:600;color:var(--green);text-decoration:none;">Ouvrir l'éditeur complet ↗</a>
+        <a href="/widget.html" style="font-size:0.88rem;font-weight:600;color:var(--red);text-decoration:none;">Essayer côté client ↗</a>
+      </div>
     </div>
     <div class="editor reveal">
       <div class="editor__toolbar">
@@ -678,7 +668,6 @@
           </a>
         </div>
       </div>
-
       <div class="contact__form reveal" style="transition-delay:100ms">
         <form id="contactForm" novalidate>
           <div class="form__grid">
@@ -705,8 +694,7 @@
             <textarea id="cf-message" name="message" placeholder="Décrivez votre projet ou votre question…" required></textarea>
           </div>
           <button type="submit" class="btn btn--primary btn--block" id="cfSubmit">Envoyer le message</button>
-          <p class="form__notice">
-            Ce formulaire est protégé par reCAPTCHA —
+          <p class="form__notice">Ce formulaire est protégé par reCAPTCHA —
             <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Politique de confidentialité</a> et
             <a href="https://policies.google.com/terms" target="_blank" rel="noopener">Conditions d'utilisation</a> de Google.
           </p>
@@ -731,7 +719,7 @@
         <span class="ravinala-mark" data-ravinala data-leaves="9" data-size="30" data-color="var(--green)"></span>
         <span>Mitoera</span>
       </a>
-      <p>La billetterie pensée pour les salles du monde entier.</p>
+      <p>La billetterie pensée pour les salles de Madagascar.</p>
       <p class="footnote">Vert rizière, rouge latérite, blanc lamba — les couleurs des hautes terres, réinterprétées pour vos salles.</p>
     </div>
     <div class="footer__cols">
@@ -750,9 +738,8 @@
       <div class="footer__col">
         <h4>Entreprise</h4>
         <a href="#">À propos</a>
-        <a href="#contact">Contact</a>
-        <a href="https://wa.me/352661825018" target="_blank" rel="noopener">WhatsApp</a>
-        <a href="mailto:contact@irytech.net">contact@irytech.net</a>
+        <a href="#">Contact</a>
+        <a href="#">Presse</a>
       </div>
     </div>
   </div>
@@ -1072,60 +1059,38 @@
   if (!form) return;
   var btn = document.getElementById('cfSubmit');
   var status = document.getElementById('cfStatus');
-
   function setStatus(ok, msg) {
     status.textContent = msg;
     status.className = 'form__status ' + (ok ? 'form__status--ok' : 'form__status--err');
   }
-
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     if (!form.checkValidity()) { form.reportValidity(); return; }
-
     btn.disabled = true;
     btn.textContent = 'Envoi en cours…';
     status.className = 'form__status';
     status.textContent = '';
-
     var siteKey = '6LdsvXstAAAAADO1phiuq2zxAeEzDZwinrOs_Yft';
-
     function doSend(token) {
-      var data = {
-        name: form.querySelector('#cf-name').value.trim(),
-        email: form.querySelector('#cf-email').value.trim(),
-        subject: form.querySelector('#cf-subject').value,
-        message: form.querySelector('#cf-message').value.trim(),
-        recaptcha: token,
-      };
       fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          name: form.querySelector('#cf-name').value.trim(),
+          email: form.querySelector('#cf-email').value.trim(),
+          subject: form.querySelector('#cf-subject').value,
+          message: form.querySelector('#cf-message').value.trim(),
+          recaptcha: token,
+        }),
       })
-        .then(function (r) {
-          if (!r.ok) throw new Error('Erreur ' + r.status);
-          return r.json();
-        })
-        .then(function () {
-          setStatus(true, 'Message envoyé ! Nous vous répondrons sous 24 h.');
-          form.reset();
-        })
-        .catch(function () {
-          setStatus(false, 'Une erreur est survenue. Réessayez ou écrivez-nous directement par e-mail.');
-        })
-        .finally(function () {
-          btn.disabled = false;
-          btn.textContent = 'Envoyer le message';
-        });
+        .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+        .then(function () { setStatus(true, 'Message envoyé ! Nous vous répondrons sous 24 h.'); form.reset(); })
+        .catch(function () { setStatus(false, 'Une erreur est survenue. Réessayez ou écrivez-nous directement par e-mail.'); })
+        .finally(function () { btn.disabled = false; btn.textContent = 'Envoyer le message'; });
     }
-
     if (window.grecaptcha) {
-      window.grecaptcha.ready(function () {
-        window.grecaptcha.execute(siteKey, { action: 'contact' }).then(doSend);
-      });
-    } else {
-      doSend('');
-    }
+      window.grecaptcha.ready(function () { window.grecaptcha.execute(siteKey, { action: 'contact' }).then(doSend); });
+    } else { doSend(''); }
   });
 })();
 </script>
