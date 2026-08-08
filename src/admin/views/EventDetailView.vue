@@ -2,7 +2,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { adminApi } from '../services/adminApi.js';
-import { subscribeToSeatStatuses } from '../services/firestore.js';
 
 import { computeAxisLabel } from '../../services/seatLabel.js';
 import EventPlanView from '../components/EventPlanView.vue';
@@ -50,7 +49,7 @@ async function load() {
   } finally { loading.value = false; }
 }
 
-let unsubscribeFirestore = null;
+let mercureEventSource = null;
 
 function applyChanges(changes) {
   const seats = (eventDetail.value?.seats || []).map(s => ({ ...s }));
@@ -62,24 +61,30 @@ function applyChanges(changes) {
   eventDetail.value = { ...eventDetail.value, seats };
 }
 
-function connectFirestore() {
-  const firestoreId = eventDetail.value?.id || eventId.value;
-  unsubscribeFirestore?.();
-  unsubscribeFirestore = subscribeToSeatStatuses(firestoreId, (changes) => {
+function connectMercure() {
+  mercureEventSource?.close();
+  const hubUrl = eventDetail.value?.mercurePublicUrl || import.meta.env.VITE_MERCURE_URL;
+  if (!hubUrl) return;
+  const id = eventDetail.value?.id || eventId.value;
+  const url = new URL(hubUrl);
+  url.searchParams.append('topic', `event/${id}/seats`);
+  mercureEventSource = new EventSource(url.toString());
+  mercureEventSource.onmessage = (e) => {
+    const changes = JSON.parse(e.data);
     applyChanges(changes);
     if (window.parent !== window) {
       window.parent.postMessage({ type: 'placio:seat-update', payload: changes }, '*');
     }
-  });
+  };
 }
 
 onMounted(async () => {
   await load();
-  connectFirestore();
+  connectMercure();
 });
 
 onUnmounted(() => {
-  unsubscribeFirestore?.();
+  mercureEventSource?.close();
 });
 
 const seatStatusMap = computed(() => {
