@@ -275,6 +275,12 @@ export const adminApi = {
       body: JSON.stringify({ seatKeys, status }),
     })).json();
   },
+  async updateEventHoldDuration(eventId, holdDurationMinutes) {
+    return (await apiFetch(`/api/events/${eventId}/hold-duration`, {
+      method: 'PATCH',
+      body: JSON.stringify({ holdDurationMinutes }),
+    })).json();
+  },
 
   // ---------- API KEYS ----------
   async listApiKeys() { return (await apiFetch('/api/api-keys')).json(); },

@@ -159,6 +159,25 @@ function catById(id) {
   return props.categories.find(c => c.id === id) || { color: '#9ca3af', name: 'Sans catégorie' };
 }
 
+// ---- Hold duration (Settings tab) ----
+const holdDurationMinutes = ref(15);
+const holdDurationSaving = ref(false);
+const holdDurationSaved = ref(false);
+
+watch(eventDetail, (d) => {
+  if (d) holdDurationMinutes.value = d.holdDurationMinutes ?? 15;
+});
+
+async function saveHoldDuration() {
+  holdDurationSaving.value = true;
+  holdDurationSaved.value = false;
+  try {
+    await adminApi.updateEventHoldDuration(selectedEvent.value.id, holdDurationMinutes.value);
+    holdDurationSaved.value = true;
+    setTimeout(() => { holdDurationSaved.value = false; }, 2000);
+  } finally { holdDurationSaving.value = false; }
+}
+
 // ---- Bulk status change (Status tab) ----
 const selectedSeats = ref(new Set());
 const updating = ref(false);
@@ -309,11 +328,11 @@ function seatTextColor(key) {
         <span v-if="selectedEvent.chartName" class="text-xs text-gray-400">— {{ selectedEvent.chartName }}</span>
       </div>
       <div class="flex gap-2">
-        <button v-for="tab in ['summary','status','for-sale','categories']" :key="tab"
+        <button v-for="tab in ['summary','status','for-sale','categories','settings']" :key="tab"
           @click="activeTab = tab; selectedSeats = new Set()"
           class="px-4 py-2 rounded-lg text-sm font-semibold transition capitalize"
           :class="activeTab === tab ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'">
-          {{ { summary: 'Résumé', status: 'Statuts', 'for-sale': 'Pour la vente', categories: 'Catégories' }[tab] }}
+          {{ { summary: 'Résumé', status: 'Statuts', 'for-sale': 'Pour la vente', categories: 'Catégories', settings: 'Paramètres' }[tab] }}
         </button>
       </div>
     </div>
@@ -409,6 +428,29 @@ function seatTextColor(key) {
             mode="select"
             @toggle-seat="toggleSeat"
           />
+        </div>
+      </div>
+
+      <!-- ===== SETTINGS ===== -->
+      <div v-else-if="activeTab === 'settings'" class="max-w-sm flex flex-col gap-4">
+        <div class="bg-white border border-gray-200 rounded-xl p-5">
+          <h3 class="font-semibold text-gray-800 mb-1">Durée de réservation temporaire</h3>
+          <p class="text-xs text-gray-500 mb-4">Temps avant qu'un siège en attente soit automatiquement libéré.</p>
+          <div class="flex items-center gap-3">
+            <input
+              v-model.number="holdDurationMinutes"
+              type="number" min="1" max="120" step="1"
+              class="w-24 px-3 py-2 border border-gray-200 rounded-lg text-sm text-center font-mono"
+            />
+            <span class="text-sm text-gray-600">minutes</span>
+          </div>
+          <div class="flex items-center gap-3 mt-4">
+            <button @click="saveHoldDuration" :disabled="holdDurationSaving"
+              class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold disabled:opacity-40 transition">
+              {{ holdDurationSaving ? 'Enregistrement…' : 'Enregistrer' }}
+            </button>
+            <span v-if="holdDurationSaved" class="text-xs text-green-600 font-medium">✓ Sauvegardé</span>
+          </div>
         </div>
       </div>
 
