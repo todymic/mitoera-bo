@@ -63,10 +63,9 @@ function applyChanges(changes) {
 
 function connectMercure() {
   mercureEventSource?.close();
-  const hubUrl = eventDetail.value?.mercurePublicUrl || import.meta.env.VITE_MERCURE_URL;
-  if (!hubUrl) return;
   const id = eventDetail.value?.id || eventId.value;
-  const url = new URL(hubUrl);
+  // Utilise le proxy Vite (/.well-known/mercure) pour éviter le mixed-content HTTPS→HTTP
+  const url = new URL('/.well-known/mercure', window.location.origin);
   url.searchParams.append('topic', `event/${id}/seats`);
   mercureEventSource = new EventSource(url.toString());
   mercureEventSource.onmessage = (e) => {
