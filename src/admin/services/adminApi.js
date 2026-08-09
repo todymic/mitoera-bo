@@ -275,6 +275,9 @@ export const adminApi = {
       body: JSON.stringify({ seatKeys, status }),
     })).json();
   },
+  async getMercureToken(eventId) {
+    return (await apiFetch(`/api/mercure-token?eventId=${eventId}`)).json();
+  },
   async updateEventHoldDuration(eventId, holdDurationMinutes) {
     return (await apiFetch(`/api/events/${eventId}/hold-duration`, {
       method: 'PATCH',

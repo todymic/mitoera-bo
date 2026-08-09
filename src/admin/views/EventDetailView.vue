@@ -61,12 +61,21 @@ function applyChanges(changes) {
   eventDetail.value = { ...eventDetail.value, seats };
 }
 
-function connectMercure() {
+async function connectMercure() {
   mercureEventSource?.close();
   const id = eventDetail.value?.id || eventId.value;
-  // Utilise le proxy Vite (/.well-known/mercure) pour éviter le mixed-content HTTPS→HTTP
+
+  // Fetch subscriber JWT from API (BO auth)
+  let mercureToken = null;
+  try {
+    const tokenData = await adminApi.getMercureToken(id);
+    mercureToken = tokenData.token ?? null;
+  } catch (_) {}
+
+  // Use the Vite proxy (/.well-known/mercure) to avoid mixed-content HTTPS→HTTP
   const url = new URL('/.well-known/mercure', window.location.origin);
   url.searchParams.append('topic', `event/${id}/seats`);
+  if (mercureToken) url.searchParams.append('authorization', mercureToken);
   mercureEventSource = new EventSource(url.toString());
   mercureEventSource.onmessage = (e) => {
     const changes = JSON.parse(e.data);
@@ -79,7 +88,7 @@ function connectMercure() {
 
 onMounted(async () => {
   await load();
-  connectMercure();
+  await connectMercure();
 });
 
 onUnmounted(() => {
