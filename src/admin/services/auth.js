@@ -1,6 +1,13 @@
 import { ref } from 'vue';
 
 const TOKEN_KEY = 'bo_jwt';
+const MODE_KEY = 'bo_api_mode';
+
+function currentMode() {
+  return localStorage.getItem(MODE_KEY) || 'prod';
+}
+
+export const apiMode = ref(currentMode());
 
 export const auth = {
   loggedIn: ref(!!localStorage.getItem(TOKEN_KEY)),
@@ -24,7 +31,8 @@ export const auth = {
   },
 
   async login(email, password) {
-    const res = await fetch('/api/auth/login', {
+    const base = getApiBase();
+    const res = await fetch(`${base}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -36,12 +44,22 @@ export const auth = {
   },
 
   async me() {
-    const res = await apiFetch('/api/auth/me');
+    const res = await apiFetch('/auth/me');
     return res.json();
   },
 };
 
-export async function apiFetch(url, options = {}) {
+export function getApiBase() {
+  return apiMode.value === 'sandbox' ? '/sandbox-api' : '/api';
+}
+
+export function switchMode(mode) {
+  localStorage.setItem(MODE_KEY, mode);
+  apiMode.value = mode;
+  window.location.reload();
+}
+
+export async function apiFetch(path, options = {}) {
   const token = auth.getToken();
   const headers = {
     'Content-Type': 'application/json',
@@ -49,6 +67,10 @@ export async function apiFetch(url, options = {}) {
     ...options.headers,
   };
 
+  // Remplace le préfixe /api par /sandbox-api si on est en mode sandbox
+  const url = path.startsWith('/api/')
+    ? `${getApiBase()}${path.slice(4)}`
+    : path;
   const res = await fetch(url, { ...options, headers });
 
   if (res.status === 401) {

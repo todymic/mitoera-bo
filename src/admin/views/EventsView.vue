@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { adminApi } from '../services/adminApi.js';
+import PlanPreview from '../components/PlanPreview.vue';
 
 const router  = useRouter();
 const events  = ref([]);
@@ -28,11 +29,33 @@ watch(newTitle, (v) => {
     .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 });
 
+const planObjectsMap = computed(() => {
+  const map = {};
+  for (const p of plans.value) {
+    map[String(p.id)] = p.publishedSnapshot ?? p.objects ?? [];
+  }
+  return map;
+});
+
+const planColors = ref({}); // { [planId]: { [categoryId]: color } }
+
 async function load() {
   loading.value = true;
   const [evts, allPlans] = await Promise.all([adminApi.listEvents(), adminApi.listVenues()]);
   events.value = evts;
   plans.value = allPlans;
+  // Charger les couleurs des catégories pour chaque plan (même logique que PlansView)
+  const results = await Promise.all(
+    allPlans
+      .filter(p => p.objects?.length)
+      .map(async p => {
+        try {
+          const cats = await adminApi.listCategories(p.id);
+          return [String(p.id), Object.fromEntries(cats.map(c => [c.id, c.color]))];
+        } catch { return [String(p.id), {}]; }
+      })
+  );
+  planColors.value = Object.fromEntries(results);
   loading.value = false;
 }
 
@@ -173,11 +196,22 @@ onMounted(load);
     </div>
     <div v-else class="flex flex-col gap-3">
       <div v-for="ev in events" :key="ev.id"
-        class="bg-white border border-gray-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 hover:shadow-sm transition">
+        class="bg-white border border-gray-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-sm transition">
+        <!-- Mini plan preview (même rendu que la liste des plans) -->
+        <PlanPreview
+          v-if="ev.chartId && planObjectsMap[String(ev.chartId)]?.length"
+          :objects="planObjectsMap[String(ev.chartId)]"
+          :color-map="planColors[String(ev.chartId)] || {}"
+          :width="100" :height="70"
+          class="shrink-0"
+        />
+        <div v-else class="w-[100px] h-[70px] shrink-0 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+        </div>
         <div class="flex-1 min-w-0">
           <p class="font-semibold text-gray-800 truncate">{{ ev.title }}</p>
-          <p class="text-xs text-gray-400 mt-0.5 font-mono">{{ ev.identifier }}</p>
-          <p v-if="ev.chartName" class="text-xs text-indigo-500 mt-0.5">Plan : {{ ev.chartName }}</p>
+          <p v-if="ev.chartName" class="text-xs text-indigo-500 mt-0.5">{{ ev.chartName }}</p>
+          <p v-else class="text-xs text-gray-400 mt-0.5">Aucun plan associé</p>
         </div>
         <div class="flex gap-2 shrink-0">
           <router-link :to="`/events/${ev.id}`"

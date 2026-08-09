@@ -32,7 +32,7 @@ export default defineConfig({
     },
     proxy: {
       '/api/admin/events': {
-        target: 'https://localhost:8000',
+        target: 'https://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
         configure: (proxy) => {
@@ -43,9 +43,15 @@ export default defineConfig({
         },
       },
       '/api': {
-        target: 'https://localhost:8000',
+        target: 'https://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
+      },
+      '/sandbox-api': {
+        target: 'https://127.0.0.1:8000',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/sandbox-api/, '/api'),
       },
       '/.well-known/mercure': {
         target: 'http://127.0.0.1:3010',

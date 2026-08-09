@@ -10,8 +10,9 @@ const HomeView     = () => import('./views/HomeView.vue');
 const ApiKeysView  = () => import('./views/ApiKeysView.vue');
 const ProfileView  = () => import('./views/ProfileView.vue');
 const UsageView    = () => import('./views/UsageView.vue');
-const BillingView  = () => import('./views/BillingView.vue');
-const LoginView    = () => import('./components/LoginView.vue');
+const BillingView    = () => import('./views/BillingView.vue');
+const SettingsView   = () => import('./views/SettingsView.vue');
+const LoginView      = () => import('./components/LoginView.vue');
 
 const routes = [
   { path: '/login',         name: 'login',        component: LoginView, meta: { public: true } },
@@ -24,6 +25,7 @@ const routes = [
   { path: '/profile',       name: 'profile',      component: ProfileView },
   { path: '/usage',         name: 'usage',        component: UsageView },
   { path: '/billing',       name: 'billing',      component: BillingView },
+  { path: '/settings',      name: 'settings',     component: SettingsView },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ];
 

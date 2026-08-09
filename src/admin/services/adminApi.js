@@ -285,6 +285,23 @@ export const adminApi = {
     })).json();
   },
 
+  // ---------- SANDBOX ----------
+  async sandboxReset() {
+    return (await apiFetch('/admin/sandbox/reset', { method: 'POST' })).json();
+  },
+  async sandboxStatus() {
+    return (await apiFetch('/admin/sandbox/status')).json();
+  },
+
+  // ---------- SETTINGS ----------
+  async getSettings() { return (await apiFetch('/api/settings')).json(); },
+  async updateSetting(key, value) {
+    return (await apiFetch(`/api/settings/${key}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ value: String(value) }),
+    })).json();
+  },
+
   // ---------- API KEYS ----------
   async listApiKeys() { return (await apiFetch('/api/api-keys')).json(); },
   async createApiKey(name, scope) {

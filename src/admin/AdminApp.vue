@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { auth } from './services/auth.js';
+import { auth, apiMode, switchMode } from './services/auth.js';
 
 // Token passé en URL depuis hetsika-bo (?token=...) — auto-login sans formulaire
 const urlToken = new URLSearchParams(window.location.search).get('token');
@@ -10,6 +10,8 @@ if (urlToken) auth.setToken(urlToken);
 const isLoggedIn = auth.loggedIn;
 const router = useRouter();
 function logout() { auth.clear(); router.push({ name: 'login' }); }
+const isSandbox = computed(() => apiMode.value === 'sandbox');
+function toggleMode() { switchMode(isSandbox.value ? 'prod' : 'sandbox'); }
 
 const route = useRoute();
 const isEmbed = computed(() => route.query.embed === 'true');
@@ -57,6 +59,12 @@ const navItems = [
     icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>',
     match: (path) => path.startsWith('/profile'),
   },
+  {
+    to: '/settings',
+    label: 'Paramètres',
+    icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
+    match: (path) => path.startsWith('/settings'),
+  },
 ];
 </script>
 
@@ -74,13 +82,24 @@ const navItems = [
 
     <!-- Header -->
     <header class="h-14 bg-white border-b border-gray-200 flex items-center px-4 sm:px-6 shrink-0 z-10 gap-3">
-      <span class="text-lg sm:text-xl font-bold text-gray-900 flex-1 text-center">Placio</span>
-      <span class="text-sm text-gray-500 hidden sm:flex items-center gap-1">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-        </svg>
-        Backoffice
+      <span class="text-lg sm:text-xl font-bold text-gray-900 flex-1 text-center">
+        Mitoera
+        <span v-if="isSandbox" class="ml-2 px-2 py-0.5 text-xs font-bold rounded-full bg-amber-400 text-amber-900">SANDBOX</span>
       </span>
+
+      <!-- Toggle Prod / Sandbox -->
+      <button
+        @click="toggleMode"
+        :title="isSandbox ? 'Passer en mode Production' : 'Passer en mode Sandbox'"
+        class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition shrink-0"
+        :class="isSandbox
+          ? 'border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100'
+          : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'"
+      >
+        <span v-if="isSandbox">⚗️ Sandbox → Prod</span>
+        <span v-else>⚗️ Sandbox</span>
+      </button>
+
       <button @click="logout" class="px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition shrink-0">
         Déconnexion
       </button>
