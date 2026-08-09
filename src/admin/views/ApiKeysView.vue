@@ -14,11 +14,11 @@ const secretKey  = computed(() => keys.value.find(k => k.scope === 'backoffice' 
 const BASE_URL = window.location.origin.replace(':5173', ':8000');
 const widgetSnippet = computed(() => {
   const key = publicKey.value?.keyId ?? 'pk_pub_…';
-  return `<div id="placio-chart"></div>
-<script src="${BASE_URL}/placio-widget.js"><\/script>
+  return `<div id="mitoera-chart"></div>
+<script src="${BASE_URL}/mitoera-widget.js"><\/script>
 <script>
   new Placio.SeatingChart({
-    divId: 'placio-chart',
+    divId: 'mitoera-chart',
     workspaceKey: '${key}',
     event: 'VOTRE_EVENT_ID',
     onSeatSelected: (seat) => console.log('sélectionné', seat),
