@@ -72,7 +72,7 @@ function connectMercure() {
     const changes = JSON.parse(e.data);
     applyChanges(changes);
     if (window.parent !== window) {
-      window.parent.postMessage({ type: 'placio:seat-update', payload: changes }, '*');
+      window.parent.postMessage({ type: 'mitoera:seat-update', payload: changes }, '*');
     }
   };
 }
