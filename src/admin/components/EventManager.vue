@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { adminApi } from '../services/adminApi.js';
 import { computeSeatLabel, computeAxisLabel } from '../../services/seatLabel';
 import EventPlanView from './EventPlanView.vue';
+import PlanThumbnail from './PlanThumbnail.vue';
 
 const props = defineProps({
   categories: { type: Array, default: () => [] },
@@ -11,6 +12,15 @@ const props = defineProps({
 // ---- State ----
 const events = ref([]);
 const plans  = ref([]);
+
+const planObjectsMap = computed(() => {
+  const map = {};
+  for (const p of plans.value) {
+    const objs = p.publishedSnapshot ?? p.objects ?? [];
+    map[p.id] = objs;
+  }
+  return map;
+});
 const loading = ref(false);
 const error   = ref('');
 
@@ -292,13 +302,24 @@ function seatTextColor(key) {
     <div v-else-if="!events.length" class="text-gray-400 text-sm">Aucun événement.</div>
     <div v-else class="flex flex-col gap-3">
       <div v-for="ev in events" :key="ev.id"
-        class="bg-white border border-gray-200 rounded-xl px-5 py-4 flex items-center justify-between hover:shadow-sm transition">
-        <div>
-          <p class="font-semibold text-gray-800">{{ ev.title }}</p>
-          <p class="text-xs text-gray-400 mt-0.5 font-mono">{{ ev.identifier }}</p>
-          <p v-if="ev.chartName" class="text-xs text-indigo-500 mt-0.5">Plan: {{ ev.chartName }}</p>
+        class="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-4 hover:shadow-sm transition">
+        <!-- Mini plan thumbnail -->
+        <PlanThumbnail
+          v-if="ev.chartId && planObjectsMap[ev.chartId]?.length"
+          :objects="planObjectsMap[ev.chartId]"
+          :width="80" :height="56"
+          class="shrink-0"
+        />
+        <div v-else class="w-20 h-14 shrink-0 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
         </div>
-        <div class="flex gap-2">
+        <!-- Info -->
+        <div class="flex-1 min-w-0">
+          <p class="font-semibold text-gray-800 truncate">{{ ev.title }}</p>
+          <p v-if="ev.chartName" class="text-xs text-indigo-500 mt-0.5 truncate">{{ ev.chartName }}</p>
+          <p v-else class="text-xs text-gray-400 mt-0.5">Aucun plan associé</p>
+        </div>
+        <div class="flex gap-2 shrink-0">
           <button @click="openEvent(ev)"
             class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition">
             Gérer
