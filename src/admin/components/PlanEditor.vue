@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, watch, computed, onMounted, nextTick } from 'vue';
+import { ref, reactive, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { adminApi } from '../services/adminApi';
 import { computeSeatLabel, computeAxisLabel, ROW_FORMATS, COL_FORMATS, DIRECTIONS } from '../../services/seatLabel';
 import { FREE_ZONE_ICONS, FREE_ZONE_PATTERNS, iconById, patternStyle } from '../../services/icons';
@@ -20,7 +20,66 @@ const seatRows = ref([]);
 const freeZones = ref([]);
 const tableZones = ref([]);
 const tableSections = ref([]);
+const textLabels = ref([]);
+const imageLayers = ref([]);
 const loading = ref(true);
+
+// Outil actif pour placement au clic sur le canvas : null | 'seatRow' | 'freeZone' | 'tableZone' | 'tableSection'
+const activeTool = ref(null);
+
+// Historique des éléments placés depuis l'activation du tool courant
+// { kind: 'seatRow'|'freeZone'|'tableZone'|'tableSection', id }
+const placementHistory = ref([]);
+
+function selectTool(tool) {
+  activeTool.value = tool === null ? null : (activeTool.value === tool ? null : tool);
+  selected.value = null;
+  panWasDrag = false;
+  placementHistory.value = [];
+}
+
+async function undoLastPlacement() {
+  if (placementHistory.value.length === 0) return;
+  const last = placementHistory.value.pop();
+  try {
+    if (last.kind === 'seatRow') {
+      await adminApi.deleteSeatRow(last.id, props.venueId);
+      seatRows.value = seatRows.value.filter((x) => x.id !== last.id);
+    } else if (last.kind === 'freeZone') {
+      await adminApi.deleteFreeZone(last.id, props.venueId);
+      freeZones.value = freeZones.value.filter((x) => x.id !== last.id);
+    } else if (last.kind === 'tableZone') {
+      await adminApi.deleteTableZone(last.id, props.venueId);
+      tableZones.value = tableZones.value.filter((x) => x.id !== last.id);
+    } else if (last.kind === 'tableSection') {
+      await adminApi.deleteTableSection(last.id, props.venueId);
+      tableSections.value = tableSections.value.filter((x) => x.id !== last.id);
+    } else if (last.kind === 'textLabel') {
+      await adminApi.deleteTextLabel(last.id, props.venueId);
+      textLabels.value = textLabels.value.filter((x) => x.id !== last.id);
+    } else if (last.kind === 'imageLayer') {
+      await adminApi.deleteImageLayer(last.id, props.venueId);
+      imageLayers.value = imageLayers.value.filter((x) => x.id !== last.id);
+    }
+    deselect();
+    isDirty.value = true;
+    emit('changed');
+  } catch (e) {
+    // re-push si échec
+    placementHistory.value.push(last);
+  }
+}
+
+function onCanvasContextMenu(ev) {
+  if (!activeTool.value) return;
+  ev.preventDefault();
+  undoLastPlacement();
+}
+
+// Annule le mode placement si Escape
+function onKeyDown(ev) {
+  if (ev.key === 'Escape' && activeTool.value) { activeTool.value = null; ev.preventDefault(); }
+}
 
 // selected = { kind: 'zone' | 'seatRow' | 'freeZone' | 'seat', id, rowId?, seatId?, seatInfo? }
 const selected = ref(null);
@@ -94,8 +153,45 @@ const pan = reactive({ active: false, startX: 0, startY: 0, originX: 0, originY:
 
 let panWasDrag = false;
 
+function canvasClickCoords(ev) {
+  const rect = scrollerRef.value.getBoundingClientRect();
+  return {
+    x: Math.round((ev.clientX - rect.left - panX.value) / zoom.value),
+    y: Math.round((ev.clientY - rect.top  - panY.value) / zoom.value),
+  };
+}
+
+// Phase capture : si un outil est actif et qu'on clique sur un élément existant,
+// on désactive l'outil avant que l'élément ne stoppe la propagation.
+function onScrollerClickCapture(ev) {
+  if (!activeTool.value || panWasDrag) return;
+  if (ev.target !== scrollerRef.value && ev.target !== canvasRef.value) {
+    activeTool.value = null;
+    placementHistory.value = [];
+    // Ne pas stopper la propagation : on laisse l'élément se sélectionner normalement
+  }
+}
+
+async function onCanvasPlacementClick(ev) {
+  if (!activeTool.value || panWasDrag) return;
+  // Ne placer que sur zone vide (le capture handler a déjà géré les clics sur éléments existants)
+  if (ev.target !== scrollerRef.value && ev.target !== canvasRef.value) return;
+  const { x, y } = canvasClickCoords(ev);
+  const tool = activeTool.value;
+  panWasDrag = false;
+  let created = null;
+  if (tool === 'seatRow')      created = await addSeatRow(x, y);
+  else if (tool === 'freeZone')     created = await addFreeZone(x, y);
+  else if (tool === 'tableZone')    created = await addTableZone(x, y);
+  else if (tool === 'tableSection') created = await addTableSection(x, y);
+  else if (tool === 'textLabel')    created = await addTextLabel(x, y);
+  else if (tool === 'imageLayer')   created = await pickAndAddImageLayer(x, y);
+  if (created) placementHistory.value.push({ kind: tool, id: created.id });
+}
+
 function startPan(ev) {
   if (ev.button !== 0) return;
+  if (activeTool.value) return;
   ev.preventDefault();
   panWasDrag = false;
   pan.active = true;
@@ -162,6 +258,7 @@ const canvasHeight = computed(() => {
   for (const f of freeZones.value)  max = Math.max(max, (f.top  || 0) + (f.height || 50)  + CANVAS_PAD);
   for (const t of tableZones.value) max = Math.max(max, (t.top  || 0) + tableZoneSize(t)   + CANVAS_PAD);
   for (const ts of tableSections.value) max = Math.max(max, (ts.top || 0) + tableSectionHeight(ts) + CANVAS_PAD);
+  for (const tl of textLabels.value) max = Math.max(max, (tl.top || 0) + (tl.fontSize || 16) * 2 + CANVAS_PAD);
   return max;
 });
 
@@ -172,6 +269,7 @@ const canvasWidth = computed(() => {
   for (const f of freeZones.value)  max = Math.max(max, (f.left  || 0) + (f.width  || 100) + CANVAS_PAD);
   for (const t of tableZones.value) max = Math.max(max, (t.left  || 0) + tableZoneSize(t)   + CANVAS_PAD);
   for (const ts of tableSections.value) max = Math.max(max, (ts.left || 0) + tableSectionWidth(ts) + CANVAS_PAD);
+  for (const tl of textLabels.value) max = Math.max(max, (tl.left || 0) + ((tl.caption?.length || 4) * (tl.fontSize || 16) * 0.6) + CANVAS_PAD);
   return max;
 });
 
@@ -186,20 +284,18 @@ async function load() {
   loading.value = true;
   loadError.value = '';
   try {
-    const [cats, zs, srs, fzs, tzs, tss] = await Promise.all([
+    const [cats, objects] = await Promise.all([
       adminApi.listCategories(props.venueId),
-      adminApi.listZones(props.venueId),
-      adminApi.listSeatRows(props.venueId),
-      adminApi.listFreeZones(props.venueId),
-      adminApi.listTableZones(props.venueId),
-      adminApi.listTableSections(props.venueId),
+      adminApi.listChartObjects(props.venueId),
     ]);
     categories.value = cats;
-    zones.value = zs;
-    seatRows.value = srs;
-    freeZones.value = fzs;
-    tableZones.value = tzs;
-    tableSections.value = tss;
+    zones.value = objects.zones;
+    seatRows.value = objects.seatRows;
+    freeZones.value = objects.freeZones;
+    tableZones.value = objects.tableZones;
+    tableSections.value = objects.tableSections;
+    textLabels.value = objects.textLabels || [];
+    imageLayers.value = objects.imageLayers || [];
     initZCounter();
     emit('changed');
   } catch (e) {
@@ -213,6 +309,19 @@ async function load() {
 const showCatPanel = ref(false);
 const catBtnRef = ref(null);
 const catPanelStyle = ref({});
+
+const infoBtnRef = ref(null);
+const infoTooltipStyle = ref({});
+
+function toggleInfoTooltip() {
+  if (!showInfoTooltip.value) {
+    const rect = infoBtnRef.value?.getBoundingClientRect();
+    if (rect) {
+      infoTooltipStyle.value = { top: (rect.bottom + 6) + 'px', right: (window.innerWidth - rect.right) + 'px' };
+    }
+  }
+  showInfoTooltip.value = !showInfoTooltip.value;
+}
 
 function toggleCatPanel() {
   if (!showCatPanel.value) {
@@ -291,6 +400,9 @@ async function flushPendingCatDeletions() {
 }
 watch(() => props.venueId, load, { immediate: true });
 
+onMounted(() => window.addEventListener('keydown', onKeyDown));
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown));
+
 function catById(id) {
   return categories.value.find((c) => c.id === id) || { color: '#999999', name: '—' };
 }
@@ -301,6 +413,7 @@ function seatGrid(row) {
   const disabledSeats = row.disabledSeats || [];
   const deletedSeats  = row.deletedSeats  || [];
   const overrides = row.categoryOverrides || {};
+  const labelOverrides = row.seatLabelOverrides || {};
   const section = row.section || row.label || row.id;
   for (let r = 0; r < row.rows; r++) {
     for (let c = 0; c < row.cols; c++) {
@@ -310,10 +423,12 @@ function seatGrid(row) {
       const rowLabel = computeAxisLabel(r, row.rows, naming.rowFormat, naming.rowDirection);
       const colLabel = computeAxisLabel(c, row.cols, naming.colFormat, naming.colDirection);
       const key = `${section}-${rowLabel}-${colLabel}`;
+      const computedLabel = computeSeatLabel(r, c, row.rows, row.cols, naming);
       seats.push({
         key, r, c, posKey,
         rowLabel, colLabel,
-        label: computeSeatLabel(r, c, row.rows, row.cols, naming),
+        label: labelOverrides[posKey] ?? computedLabel,
+        computedLabel,
         categoryId: overrides[posKey] || row.categoryId,
         status: isDeleted ? 'deleted' : isDisabled ? 'disabled' : (seatStatusOverrides[`${row.id}-${posKey}`] || 'available'),
       });
@@ -491,6 +606,8 @@ const selectedSeatRow = computed(() => selected.value?.kind === 'seatRow' ? seat
 const selectedFreeZone = computed(() => selected.value?.kind === 'freeZone' ? freeZones.value.find((f) => f.id === selected.value.id) : null);
 const selectedTableZone = computed(() => selected.value?.kind === 'tableZone' ? tableZones.value.find((t) => t.id === selected.value.id) : null);
 const selectedTableSection = computed(() => selected.value?.kind === 'tableSection' ? tableSections.value.find((ts) => ts.id === selected.value.id) : null);
+const selectedTextLabel = computed(() => selected.value?.kind === 'textLabel' ? textLabels.value.find((tl) => tl.id === selected.value.id) : null);
+const selectedImageLayer = computed(() => selected.value?.kind === 'imageLayer' ? imageLayers.value.find((il) => il.id === selected.value.id) : null);
 const selectedTableSectionSeat = computed(() => {
   if (selected.value?.kind !== 'tableSectionSeat') return null;
   const ts = tableSections.value.find((x) => x.id === selected.value.tsId);
@@ -521,6 +638,8 @@ function selectSeatRow(r) { selected.value = { kind: 'seatRow', id: r.id }; mult
 function selectFreeZone(f) { selected.value = { kind: 'freeZone', id: f.id }; multiSelected.clear(); }
 function selectTableZone(t) { selected.value = { kind: 'tableZone', id: t.id }; multiSelected.clear(); }
 function selectTableSection(ts) { selected.value = { kind: 'tableSection', id: ts.id }; multiSelected.clear(); }
+function selectTextLabel(tl) { selected.value = { kind: 'textLabel', id: tl.id }; multiSelected.clear(); }
+function selectImageLayer(il) { selected.value = { kind: 'imageLayer', id: il.id }; multiSelected.clear(); }
 function selectTableSectionTable(ts, tableIndex) { selected.value = { kind: 'tableSectionTable', tsId: ts.id, tableIndex }; multiSelected.clear(); }
 function selectTableSectionSeat(ts, seat) {
   selected.value = { kind: 'tableSectionSeat', tsId: ts.id, seatInfo: seat };
@@ -584,11 +703,13 @@ function startDrag(ev, kind, item) {
   if (ev.button !== 0) return;
   ev.preventDefault();
   ev.stopPropagation();
-  bringToFront(item);
+  if (kind !== 'imageLayer') bringToFront(item);
   if (kind === 'zone') selectZone(item);
   else if (kind === 'seatRow') selectSeatRow(item);
   else if (kind === 'tableZone') selectTableZone(item);
   else if (kind === 'tableSection') selectTableSection(item);
+  else if (kind === 'textLabel') selectTextLabel(item);
+  else if (kind === 'imageLayer') selectImageLayer(item);
   else selectFreeZone(item);
   const canvasRect = canvasRef.value.getBoundingClientRect();
   const z = zoom.value;
@@ -674,6 +795,8 @@ function listFor(kind) {
   if (kind === 'freeZone') return freeZones.value;
   if (kind === 'tableZone') return tableZones.value;
   if (kind === 'tableSection') return tableSections.value;
+  if (kind === 'textLabel') return textLabels.value;
+  if (kind === 'imageLayer') return imageLayers.value;
   return seatRows.value;
 }
 
@@ -805,6 +928,8 @@ async function stopDrag() {
     else if (kind === 'freeZone') await adminApi.updateFreeZone(item.id, { top: item.top, left: item.left }, props.venueId);
     else if (kind === 'tableZone') await adminApi.updateTableZone(item.id, { top: item.top, left: item.left }, props.venueId);
     else if (kind === 'tableSection') await adminApi.updateTableSection(item.id, { top: item.top, left: item.left }, props.venueId);
+    else if (kind === 'textLabel') await adminApi.updateTextLabel(item.id, { top: item.top, left: item.left }, props.venueId);
+    else if (kind === 'imageLayer') await adminApi.updateImageLayer(item.id, { top: item.top, left: item.left }, props.venueId);
     else await adminApi.updateSeatRow(item.id, { top: item.top, left: item.left }, props.venueId);
   } else if (mode === 'resize') {
     if (kind === 'zone') await adminApi.updateZone(item.id, { width: item.width, height: item.height, top: item.top, left: item.left }, props.venueId);
@@ -829,53 +954,126 @@ async function addZone() {
   isDirty.value = true;
   emit('changed');
 }
-async function addSeatRow() {
-  if (categories.value.length === 0) return;
-  const nextNumber = seatRows.value.reduce((max, r) => Math.max(max, r.blockNumber || 0), 0) + 1;
+async function addSeatRow(left = 40, top = 40) {
+  if (categories.value.length === 0) return null;
   const r = await adminApi.createSeatRow(props.venueId, {
     section: '', label: 'Nouveau bloc', categoryId: categories.value[0].id,
-    top: 40, left: 40, rows: 3, cols: 6, shape: 'rounded', seatSize: 22,
+    top, left, rows: 3, cols: 6, shape: 'square', seatSize: 20,
   });
   seatRows.value.push(r);
   selectSeatRow(r);
   isDirty.value = true;
   emit('changed');
+  return r;
 }
-async function addFreeZone() {
+async function addFreeZone(left = 300, top = 40) {
   const fz = await adminApi.createFreeZone(props.venueId, {
     label: 'Zone libre', icon: 'none', color: '#6b7280', pattern: 'solid',
-    top: 40, left: 300, width: 110, height: 50, labelFontSize: 10,
+    top, left, width: 110, height: 50, labelFontSize: 10,
   });
   freeZones.value.push(fz);
   selectFreeZone(fz);
   isDirty.value = true;
   emit('changed');
+  return fz;
 }
-async function addTableSection() {
-  if (categories.value.length === 0) return;
+async function addTableSection(left = 80, top = 80) {
+  if (categories.value.length === 0) return null;
   const ts = await adminApi.createTableSection(props.venueId, {
-    section: '', label: 'Section de tables', tableCount: 3, seatsPerTable: 6,
-    tableRows: 1, tableSize: 30, seatSize: 13, seatLabelFontSize: 9, tableSpacing: 20,
+    section: '', label: 'Tables groupées', tableCount: 3, seatsPerTable: 6,
+    tableRows: 1, tableSize: 30, seatSize: 13, seatLabelFontSize: 9, tableSpacing: 0,
     categoryId: categories.value[0].id,
-    top: 80, left: 80, rowLabelFontSize: 10, disabledSeats: [],
+    top, left, rowLabelFontSize: 10, disabledSeats: [],
   });
   tableSections.value.push(ts);
   selectTableSection(ts);
   isDirty.value = true;
   emit('changed');
+  return ts;
 }
-async function addTableZone() {
-  if (categories.value.length === 0) return;
+async function addTableZone(left = 200, top = 80) {
+  if (categories.value.length === 0) return null;
   const t = await adminApi.createTableZone(props.venueId, {
     section: '', label: 'Table', seatCount: 6,
     tableSize: 30, seatSize: 13, seatLabelFontSize: 9,
     categoryId: categories.value[0].id,
-    top: 80, left: 200, rowLabelFontSize: 10, disabledSeats: [],
+    top, left, rowLabelFontSize: 10, disabledSeats: [],
   });
   tableZones.value.push(t);
   selectTableZone(t);
   isDirty.value = true;
   emit('changed');
+  return t;
+}
+
+// Ref pour le file input caché (outil Image)
+const imageFileInputRef = ref(null);
+let pendingImagePos = null; // { x, y } en coordonnées canvas
+
+function pickAndAddImageLayer(x, y) {
+  pendingImagePos = { x, y };
+  imageFileInputRef.value?.click();
+  // La création réelle se fait dans onImageFilePicked, retourne null ici
+  // (on ne veut pas mettre en pause onCanvasPlacementClick)
+  return null;
+}
+
+async function onImageFilePicked(ev) {
+  const file = ev.target.files?.[0];
+  ev.target.value = '';
+  if (!file) return;
+  const pos = pendingImagePos || { x: 40, y: 40 };
+  pendingImagePos = null;
+  const src = await new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.readAsDataURL(file);
+  });
+  const { w, h } = await new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.src = src;
+  });
+  // Remplacement d'une image existante
+  if (pos.replaceId) {
+    const existing = imageLayers.value.find(il => il.id === pos.replaceId);
+    if (existing) {
+      existing.src = src;
+      existing.naturalWidth = w;
+      existing.naturalHeight = h;
+      existing.fileName = file.name;
+      existing.fileSize = file.size;
+      await adminApi.updateImageLayer(existing.id, { src, naturalWidth: w, naturalHeight: h, fileName: file.name, fileSize: file.size }, props.venueId);
+      isDirty.value = true;
+      emit('changed');
+    }
+    return;
+  }
+  // Nouvelle image
+  const il = await adminApi.createImageLayer(props.venueId, {
+    src, naturalWidth: w, naturalHeight: h,
+    left: pos.x, top: pos.y,
+    scale: 1, rotation: 0, opacity: 1, layer: 'background',
+    fileName: file.name, fileSize: file.size,
+  });
+  imageLayers.value.push(il);
+  selectImageLayer(il);
+  placementHistory.value.push({ kind: 'imageLayer', id: il.id });
+  isDirty.value = true;
+  emit('changed');
+}
+
+async function addTextLabel(left = 100, top = 100) {
+  const tl = await adminApi.createTextLabel(props.venueId, {
+    caption: 'Texte', fontSize: 16, color: '#111827',
+    fontFamily: 'sans-serif', bold: false, italic: false,
+    rotation: 0, top, left, zIndex: 1,
+  });
+  textLabels.value.push(tl);
+  selectTextLabel(tl);
+  isDirty.value = true;
+  emit('changed');
+  return tl;
 }
 
 // ---------- Édition via panneau latéral ----------
@@ -904,6 +1102,7 @@ async function persistSelected() {
       rowLabelFontSize: Number(r.rowLabelFontSize),
       badgeVisible: !!r.badgeVisible,
       deletedSeats: r.deletedSeats || [],
+      seatLabelOverrides: r.seatLabelOverrides || {},
     }, props.venueId);
   } else if (selectedFreeZone.value) {
     const f = selectedFreeZone.value;
@@ -938,6 +1137,19 @@ async function persistSelected() {
       tableSeatsOverrides: ts.tableSeatsOverrides || {},
       tableRotationOverrides: ts.tableRotationOverrides || {},
       deletedTables: ts.deletedTables || [],
+    }, props.venueId);
+  } else if (selectedTextLabel.value) {
+    const tl = selectedTextLabel.value;
+    await adminApi.updateTextLabel(tl.id, {
+      caption: tl.caption, fontSize: Number(tl.fontSize), color: tl.color,
+      fontFamily: tl.fontFamily || 'sans-serif', bold: !!tl.bold, italic: !!tl.italic,
+      rotation: Number(tl.rotation || 0),
+    }, props.venueId);
+  } else if (selectedImageLayer.value) {
+    const il = selectedImageLayer.value;
+    await adminApi.updateImageLayer(il.id, {
+      scale: Number(il.scale ?? 1), rotation: Number(il.rotation ?? 0),
+      opacity: Number(il.opacity ?? 1), layer: il.layer || 'background',
     }, props.venueId);
   }
   emit('changed');
@@ -1009,6 +1221,14 @@ async function removeSelected() {
     const ts = selectedTableSection.value;
     await adminApi.deleteTableSection(ts.id, props.venueId);
     tableSections.value = tableSections.value.filter((x) => x.id !== ts.id);
+  } else if (selectedTextLabel.value) {
+    const tl = selectedTextLabel.value;
+    await adminApi.deleteTextLabel(tl.id, props.venueId);
+    textLabels.value = textLabels.value.filter((x) => x.id !== tl.id);
+  } else if (selectedImageLayer.value) {
+    const il = selectedImageLayer.value;
+    await adminApi.deleteImageLayer(il.id, props.venueId);
+    imageLayers.value = imageLayers.value.filter((x) => x.id !== il.id);
   }
   deselect();
   isDirty.value = true;
@@ -1156,6 +1376,24 @@ async function deleteEntireTable() {
   isDirty.value = true;
   emit('changed');
   deselect();
+}
+
+async function restoreDeletedTable(ts, tableIndex) {
+  const tables = new Set(ts.deletedTables || []);
+  tables.delete(tableIndex);
+  ts.deletedTables = [...tables];
+
+  // Restaurer aussi les sièges de cette table
+  const count = (ts.tableSeatsOverrides?.[tableIndex] !== undefined)
+    ? Number(ts.tableSeatsOverrides[tableIndex])
+    : (ts.seatsPerTable || 6);
+  const seats = new Set(ts.deletedSeats || []);
+  for (let si = 0; si < count; si++) seats.delete(`${tableIndex}-${si}`);
+  ts.deletedSeats = [...seats];
+
+  await adminApi.updateTableSection(ts.id, { deletedSeats: ts.deletedSeats, deletedTables: ts.deletedTables }, props.venueId);
+  isDirty.value = true;
+  emit('changed');
 }
 
 function updateTableSeatsCount(seatsCount) {
@@ -1320,7 +1558,185 @@ async function saveAll() {
 </script>
 
 <template>
-  <div class="flex gap-4 h-full min-h-0 overflow-hidden relative">
+  <div class="flex gap-2 h-full min-h-0 overflow-hidden relative">
+
+    <!-- ── Sidebar gauche : outils de placement ── -->
+    <div class="hidden sm:flex flex-col gap-1.5 bg-white rounded-2xl shadow-sm p-2 shrink-0 items-center justify-center">
+
+      <!-- Sélection (pointeur) -->
+      <div class="relative group">
+        <button
+          @click="selectTool(null)"
+          class="w-10 h-10 rounded-xl flex items-center justify-center transition"
+          :class="activeTool === null
+            ? 'bg-gray-900 text-white ring-2 ring-gray-900 ring-offset-1'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'"
+        >
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M4 2.5L4 17.5L8.5 13.5L11.5 21L13.5 20L10.5 13H16L4 2.5Z"/>
+          </svg>
+        </button>
+        <div class="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50
+          bg-gray-900 text-white text-xs font-semibold whitespace-nowrap rounded-lg px-2.5 py-1.5 shadow-lg
+          opacity-0 group-hover:opacity-100 transition-opacity">
+          Sélection
+          <div class="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+        </div>
+      </div>
+
+      <div class="w-6 h-px bg-gray-100 my-0.5"></div>
+
+      <!-- Rangée de sièges -->
+      <div class="relative group">
+        <button
+          :disabled="categories.length === 0"
+          @click="selectTool('seatRow')"
+          class="w-10 h-10 rounded-xl flex items-center justify-center transition disabled:opacity-40"
+          :class="activeTool === 'seatRow'
+            ? 'bg-gray-900 text-white ring-2 ring-gray-900 ring-offset-1'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'"
+        >
+          <!-- Icône rangées de sièges : 3 lignes de petits ronds -->
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none">
+            <circle cx="5"  cy="8" r="2" fill="currentColor"/>
+            <circle cx="12" cy="8" r="2" fill="currentColor"/>
+            <circle cx="19" cy="8" r="2" fill="currentColor"/>
+            <circle cx="5"  cy="14" r="2" fill="currentColor"/>
+            <circle cx="12" cy="14" r="2" fill="currentColor"/>
+            <circle cx="19" cy="14" r="2" fill="currentColor"/>
+            <rect x="3" y="17.5" width="18" height="2" rx="1" fill="currentColor" opacity="0.4"/>
+          </svg>
+        </button>
+        <div class="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50
+          bg-gray-900 text-white text-xs font-semibold whitespace-nowrap rounded-lg px-2.5 py-1.5 shadow-lg
+          opacity-0 group-hover:opacity-100 transition-opacity">
+          Rangée de sièges
+          <div class="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+        </div>
+      </div>
+
+      <!-- Zone libre -->
+      <div class="relative group">
+        <button
+          @click="selectTool('freeZone')"
+          class="w-10 h-10 rounded-xl flex items-center justify-center transition"
+          :class="activeTool === 'freeZone'
+            ? 'bg-indigo-600 text-white ring-2 ring-indigo-500 ring-offset-1'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="2" fill="none"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v8M8 12h8"/>
+          </svg>
+        </button>
+        <div class="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50
+          bg-gray-900 text-white text-xs font-semibold whitespace-nowrap rounded-lg px-2.5 py-1.5 shadow-lg
+          opacity-0 group-hover:opacity-100 transition-opacity">
+          Zone libre
+          <div class="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="relative group">
+        <button
+          :disabled="categories.length === 0"
+          @click="selectTool('tableZone')"
+          class="w-10 h-10 rounded-xl flex items-center justify-center transition disabled:opacity-40"
+          :class="activeTool === 'tableZone'
+            ? 'bg-indigo-600 text-white ring-2 ring-indigo-500 ring-offset-1'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <circle cx="12" cy="12" r="4" stroke="currentColor" fill="none"/>
+            <circle cx="12" cy="4"  r="1.5" fill="currentColor"/>
+            <circle cx="12" cy="20" r="1.5" fill="currentColor"/>
+            <circle cx="4"  cy="12" r="1.5" fill="currentColor"/>
+            <circle cx="20" cy="12" r="1.5" fill="currentColor"/>
+          </svg>
+        </button>
+        <div class="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50
+          bg-gray-900 text-white text-xs font-semibold whitespace-nowrap rounded-lg px-2.5 py-1.5 shadow-lg
+          opacity-0 group-hover:opacity-100 transition-opacity">
+          Table
+          <div class="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+        </div>
+      </div>
+
+      <!-- Tables groupées -->
+      <div class="relative group">
+        <button
+          :disabled="categories.length === 0"
+          @click="selectTool('tableSection')"
+          class="w-10 h-10 rounded-xl flex items-center justify-center transition disabled:opacity-40"
+          :class="activeTool === 'tableSection'
+            ? 'bg-indigo-600 text-white ring-2 ring-indigo-500 ring-offset-1'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'"
+        >
+          <!-- 4 petits ronds groupés (2×2) -->
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none">
+            <circle cx="7"  cy="7"  r="3.5" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <circle cx="7"  cy="7"  r="1.2" fill="currentColor"/>
+            <circle cx="17" cy="7"  r="3.5" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <circle cx="17" cy="7"  r="1.2" fill="currentColor"/>
+            <circle cx="7"  cy="17" r="3.5" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <circle cx="7"  cy="17" r="1.2" fill="currentColor"/>
+            <circle cx="17" cy="17" r="3.5" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <circle cx="17" cy="17" r="1.2" fill="currentColor"/>
+          </svg>
+        </button>
+        <div class="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50
+          bg-gray-900 text-white text-xs font-semibold whitespace-nowrap rounded-lg px-2.5 py-1.5 shadow-lg
+          opacity-0 group-hover:opacity-100 transition-opacity">
+          Tables groupées
+          <div class="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+        </div>
+      </div>
+
+      <!-- Image -->
+      <div class="relative group">
+        <button
+          @click="selectTool('imageLayer')"
+          class="w-10 h-10 rounded-xl flex items-center justify-center transition"
+          :class="activeTool === 'imageLayer'
+            ? 'bg-indigo-600 text-white ring-2 ring-indigo-500 ring-offset-1'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'"
+        >
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="3" y="5" width="18" height="14" rx="2"/>
+            <circle cx="8.5" cy="10" r="1.5" fill="currentColor" stroke="none"/>
+            <path stroke-linejoin="round" d="M3 17l5-5 3.5 3.5L15 11l6 6"/>
+          </svg>
+        </button>
+        <div class="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50
+          bg-gray-900 text-white text-xs font-semibold whitespace-nowrap rounded-lg px-2.5 py-1.5 shadow-lg
+          opacity-0 group-hover:opacity-100 transition-opacity">
+          Image
+          <div class="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+        </div>
+      </div>
+
+      <!-- Texte -->
+      <div class="relative group">
+        <button
+          @click="selectTool('textLabel')"
+          class="w-10 h-10 rounded-xl flex items-center justify-center transition"
+          :class="activeTool === 'textLabel'
+            ? 'bg-indigo-600 text-white ring-2 ring-indigo-500 ring-offset-1'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'"
+        >
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M5 4h14v3h-2V6H13v12h2v2H9v-2h2V6H7v1H5V4z"/>
+          </svg>
+        </button>
+        <div class="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50
+          bg-gray-900 text-white text-xs font-semibold whitespace-nowrap rounded-lg px-2.5 py-1.5 shadow-lg
+          opacity-0 group-hover:opacity-100 transition-opacity">
+          Texte
+          <div class="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+        </div>
+      </div>
+    </div>
 
     <div class="flex-1 min-w-0 bg-white rounded-2xl shadow-sm p-3 sm:p-4 flex flex-col min-h-0">
       <!-- Toolbar -->
@@ -1433,48 +1849,6 @@ async function saveAll() {
           </Transition>
         </Teleport>
 
-        <div class="flex gap-1.5 shrink-0">
-          <!-- + Bloc de sièges -->
-          <button :disabled="categories.length===0" @click="addSeatRow" title="+ Bloc de sièges"
-            class="text-xs font-semibold bg-gray-900 text-white rounded-lg hover:bg-gray-700 disabled:opacity-40 flex items-center gap-1.5 px-2 py-1.5 sm:px-2.5">
-            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/>
-            </svg>
-            <span class="hidden sm:inline whitespace-nowrap">Sièges</span>
-          </button>
-          <!-- + Zone libre -->
-          <button @click="addFreeZone" title="+ Zone libre"
-            class="text-xs font-semibold bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-1.5 px-2 py-1.5 sm:px-2.5">
-            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="2" fill="none"/>
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v8M8 12h8"/>
-            </svg>
-            <span class="hidden sm:inline whitespace-nowrap">Zone</span>
-          </button>
-          <!-- + Table -->
-          <button :disabled="categories.length===0" @click="addTableZone" title="+ Table"
-            class="text-xs font-semibold bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-40 flex items-center gap-1.5 px-2 py-1.5 sm:px-2.5">
-            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <circle cx="12" cy="12" r="4" stroke="currentColor" fill="none"/>
-              <circle cx="12" cy="4"  r="1.5" fill="currentColor"/>
-              <circle cx="12" cy="20" r="1.5" fill="currentColor"/>
-              <circle cx="4"  cy="12" r="1.5" fill="currentColor"/>
-              <circle cx="20" cy="12" r="1.5" fill="currentColor"/>
-            </svg>
-            <span class="hidden sm:inline whitespace-nowrap">Table</span>
-          </button>
-          <!-- + Section de tables -->
-          <button :disabled="categories.length===0" @click="addTableSection" title="+ Section de tables"
-            class="text-xs font-semibold bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-40 flex items-center gap-1.5 px-2 py-1.5 sm:px-2.5">
-            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <rect x="2" y="7" width="8" height="5" rx="1.5" fill="none" stroke="currentColor"/>
-              <rect x="14" y="7" width="8" height="5" rx="1.5" fill="none" stroke="currentColor"/>
-              <rect x="2" y="15" width="8" height="5" rx="1.5" fill="none" stroke="currentColor"/>
-              <rect x="14" y="15" width="8" height="5" rx="1.5" fill="none" stroke="currentColor"/>
-            </svg>
-            <span class="hidden sm:inline whitespace-nowrap">Section</span>
-          </button>
-        </div>
         <div class="flex gap-1.5 ml-auto shrink-0">
           <!-- Publier -->
           <button :disabled="saving || !canSave" @click="saveAll" title="Publier"
@@ -1495,21 +1869,23 @@ async function saveAll() {
             </svg>
             <span class="hidden sm:inline whitespace-nowrap">Aperçu</span>
           </button>
-          <!-- Info tooltip (mobile) -->
-          <div class="relative">
-            <button @click="showInfoTooltip = !showInfoTooltip" title="Aide"
-              class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-            </button>
+          <!-- Info — Teleport pour éviter le clipping overflow -->
+          <button ref="infoBtnRef" @click="toggleInfoTooltip" title="Aide"
+            class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </button>
+          <Teleport to="body">
             <div v-if="showInfoTooltip"
-              class="absolute right-0 top-10 z-30 w-72 bg-gray-900 text-gray-200 text-xs rounded-xl p-3 shadow-xl leading-relaxed"
+              class="fixed z-[9999] w-72 bg-gray-900 text-gray-200 text-xs rounded-xl p-3 shadow-xl leading-relaxed"
+              :style="infoTooltipStyle"
               @click.stop>
               <button @click="showInfoTooltip = false" class="float-right text-gray-400 hover:text-white ml-2 leading-none">✕</button>
               Glissez pour <strong class="text-white">déplacer</strong> · tirez un bord pour <strong class="text-white">redimensionner</strong> (bloc de sièges : gauche/droit = sièges par rang, haut/bas = rangées) · cliquez un siège pour le <strong class="text-white">sélectionner</strong>, <strong class="text-white">Ctrl/Cmd-clic</strong> ou <strong class="text-white">Maj-clic</strong> pour en sélectionner plusieurs.
             </div>
-          </div>
+            <div v-if="showInfoTooltip" class="fixed inset-0 z-[9998]" @click="showInfoTooltip = false" />
+          </Teleport>
           <!-- Toggle propriétés (mobile) -->
           <button @click="showProps = !showProps" title="Propriétés"
             class="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-200 transition"
@@ -1518,12 +1894,6 @@ async function saveAll() {
               <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/>
             </svg>
           </button>
-          <!-- Zoom -->
-          <div class="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
-            <button @click="zoomOut" class="w-6 h-6 flex items-center justify-center text-gray-600 hover:bg-white rounded-md font-bold transition">−</button>
-            <button @click="zoomReset" class="px-1 h-6 flex items-center justify-center text-gray-500 hover:bg-white rounded-md text-[10px] font-semibold transition min-w-[36px]">{{ Math.round(zoom * 100) }}%</button>
-            <button @click="zoomIn"  class="w-6 h-6 flex items-center justify-center text-gray-600 hover:bg-white rounded-md font-bold transition">+</button>
-          </div>
         </div>
       </div>
       <p v-if="saveSuccess" class="text-xs text-green-600 bg-green-50 p-2 rounded-lg mb-2">Plan enregistré avec succès.</p>
@@ -1583,6 +1953,9 @@ async function saveAll() {
         <button @click="clearMultiSelection" class="ml-auto px-3 py-1.5 rounded-md bg-gray-700 hover:bg-gray-600 font-semibold">Tout désélectionner</button>
       </div>
 
+      <!-- Input file caché pour l'outil Image — hors du v-if/v-else chain -->
+      <input ref="imageFileInputRef" type="file" accept="image/*" class="hidden" @change="onImageFilePicked" />
+
       <div v-if="loading" class="text-sm text-gray-400 py-10 text-center">Chargement…</div>
       <div v-else-if="loadError" class="text-sm text-red-500 py-10 text-center">{{ loadError }}</div>
 
@@ -1598,19 +1971,59 @@ async function saveAll() {
 
       <div v-else ref="scrollerRef"
         class="overflow-hidden rounded-xl flex-1 min-h-0 bg-gray-400 relative"
-        :class="pan.active ? 'cursor-grabbing' : 'cursor-grab'"
+        :class="activeTool ? 'cursor-crosshair' : pan.active ? 'cursor-grabbing' : 'cursor-grab'"
         style="touch-action: none;"
         @wheel.prevent="onWheel"
         @pointerdown="startPan($event); showInfoTooltip = false; showCatPanel = false"
-        @click="onScrollerClick"
+        @click.capture="onScrollerClickCapture"
+        @click="activeTool ? onCanvasPlacementClick($event) : onScrollerClick($event)"
+        @contextmenu="onCanvasContextMenu"
       >
+        <!-- Zoom overlay — en bas à droite du canvas -->
+        <div class="absolute bottom-3 right-3 z-20 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm rounded-lg shadow p-0.5 pointer-events-auto">
+          <button @click.stop="zoomOut" class="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-md font-bold transition text-base">−</button>
+          <button @click.stop="zoomReset" class="px-1.5 h-7 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-md text-[11px] font-semibold transition min-w-[42px]">{{ Math.round(zoom * 100) }}%</button>
+          <button @click.stop="zoomIn"  class="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-md font-bold transition text-base">+</button>
+        </div>
+
+        <!-- Indicateur mode placement -->
+        <div v-if="activeTool" class="absolute top-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none
+          bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+          </svg>
+          Cliquez sur le plan pour placer · Échap pour annuler
+        </div>
+
         <div ref="canvasRef" class="absolute bg-white shadow-xl"
           :style="{
             width: canvasWidth + 'px', height: canvasHeight + 'px',
             transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
             transformOrigin: '0 0',
           }"
-          @pointerdown.self="deselect">
+          @pointerdown.self="activeTool ? null : deselect()"
+          @click.self="activeTool ? null : deselect()">
+
+          <!-- Images (background + foreground) — zIndex piloté par layer, jamais par bringToFront -->
+          <img
+            v-for="il in imageLayers" :key="il.id"
+            :src="il.src"
+            class="absolute select-none"
+            :class="selected && selected.kind==='imageLayer' && selected.id===il.id ? 'outline outline-2 outline-indigo-500 outline-offset-2' : ''"
+            :style="{
+              left: il.left + 'px', top: il.top + 'px',
+              width: (il.naturalWidth * (il.scale ?? 1)) + 'px',
+              height: (il.naturalHeight * (il.scale ?? 1)) + 'px',
+              opacity: il.opacity ?? 1,
+              transform: il.rotation ? `rotate(${il.rotation}deg)` : undefined,
+              transformOrigin: '0 0',
+              zIndex: il.layer === 'foreground' ? 500 : 0,
+              cursor: 'move',
+            }"
+            draggable="false"
+            @pointerdown="startDrag($event, 'imageLayer', il)"
+            @click.stop="selectImageLayer(il)"
+          />
 
           <!-- Zones génériques -->
           <div
@@ -1794,7 +2207,27 @@ async function saveAll() {
                       T{{ (ri - 1) * (ts.tableCount || 3) + ci }}
                     </span>
                   </div>
-                  </template><!-- /v-if deletedTables -->
+                  </template>
+                  <!-- Placeholder table supprimée — clic pour restaurer -->
+                  <template v-else>
+                    <div
+                      class="absolute rounded-full flex items-center justify-center cursor-pointer"
+                      style="pointer-events: auto;"
+                      :style="{
+                        width: (ts.tableSize || 30) + 'px', height: (ts.tableSize || 30) + 'px',
+                        left: (TS_PAD + (ci - 1) * (tableSectionUnitSize(ts) + (ts.tableSpacing ?? 2)) + (tableSectionUnitSize(ts) - (ts.tableSize || 30)) / 2) + 'px',
+                        top:  (TS_PAD + (ri - 1) * (tableSectionUnitSize(ts) + (ts.tableSpacing ?? 2)) + (tableSectionUnitSize(ts) - (ts.tableSize || 30)) / 2) + 'px',
+                        border: `2px dashed ${catById(ts.categoryId).color}55`,
+                        background: 'transparent',
+                        color: catById(ts.categoryId).color,
+                        opacity: 0.5,
+                        fontSize: (ts.tableLabelFontSize || 13) + 'px',
+                      }"
+                      title="Restaurer cette table"
+                      @pointerdown.stop
+                      @click.stop="restoreDeletedTable(ts, (ri - 1) * (ts.tableCount || 3) + (ci - 1))"
+                    >+</div>
+                  </template><!-- /v-else deletedTables -->
                 </template>
               </template>
             </div>
@@ -1851,10 +2284,10 @@ async function saveAll() {
                     border: seat.status === 'disabled' ? '1px solid #d8dade' : 'none',
                     outline: selected && selected.kind==='seat' && selected.seatId===seat.key ? '2px solid #111' : isMultiSelected(row, seat) ? '2px solid #3b82f6' : 'none',
                     outlineOffset: '1px',
+                    pointerEvents: seat.status === 'deleted' ? 'none' : 'auto',
                   }"
-                  style="pointer-events:auto"
                   @pointerdown.stop
-                  @click.stop="seat.status !== 'deleted' && onSeatClick(row, seat, $event)"
+                  @click.stop="onSeatClick(row, seat, $event)"
                 >{{ (row.seatSize || 22) >= 14 && seat.status !== 'deleted' ? seat.label : '' }}</div>
               </div>
             </div>
@@ -1864,6 +2297,28 @@ async function saveAll() {
             <div class="absolute top-2 bottom-2 -left-1 w-2 cursor-ew-resize" @pointerdown="startResizeSeatRow($event, row, 'left')"></div>
             <div class="absolute top-2 bottom-2 -right-1 w-2 cursor-ew-resize" @pointerdown="startResizeSeatRow($event, row, 'right')"></div>
           </div>
+
+          <!-- Étiquettes texte libres -->
+          <div
+            v-for="tl in textLabels" :key="tl.id"
+            class="absolute select-none cursor-move whitespace-nowrap"
+            :class="selected && selected.kind==='textLabel' && selected.id===tl.id ? 'outline outline-2 outline-indigo-500 outline-offset-2 rounded-sm' : ''"
+            :style="{
+              top: tl.top + 'px',
+              left: tl.left + 'px',
+              fontSize: (tl.fontSize || 16) + 'px',
+              color: tl.color || '#111827',
+              fontFamily: tl.fontFamily || 'sans-serif',
+              fontWeight: tl.bold ? 'bold' : 'normal',
+              fontStyle: tl.italic ? 'italic' : 'normal',
+              transform: tl.rotation ? `rotate(${tl.rotation}deg)` : undefined,
+              transformOrigin: '0 0',
+              zIndex: tl.zIndex || 10,
+              lineHeight: 1.2,
+            }"
+            @pointerdown="startDrag($event, 'textLabel', tl)"
+            @click.stop="selectTextLabel(tl)"
+          >{{ tl.caption }}</div>
 
           <div v-if="zones.length===0 && seatRows.length===0 && freeZones.length===0 && tableZones.length===0 && tableSections.length===0" class="absolute inset-0 flex items-center justify-center text-gray-400 text-sm pointer-events-none">
             Cliquez sur "+ Zone", "+ Bloc de sièges", "+ Zone libre", "+ Table" ou "+ Section de tables" pour commencer.
@@ -2015,6 +2470,124 @@ async function saveAll() {
             Supprimer
           </button>
         </div>
+      </div>
+
+      <!-- Propriétés d'une étiquette texte -->
+      <div v-else-if="selectedTextLabel" class="flex flex-col gap-3">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide">Texte</p>
+        <div>
+          <label class="text-xs font-semibold text-gray-500">Contenu</label>
+          <input v-model="selectedTextLabel.caption" @input="scheduleSave"
+            class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500">Taille (px)</label>
+          <div class="flex items-center gap-2 mt-1">
+            <button @click="selectedTextLabel.fontSize = Math.max(6, (selectedTextLabel.fontSize || 16) - 1); scheduleSave()"
+              class="w-7 h-7 rounded border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-base">−</button>
+            <span class="flex-1 text-center text-sm font-semibold">{{ selectedTextLabel.fontSize || 16 }} pt</span>
+            <button @click="selectedTextLabel.fontSize = (selectedTextLabel.fontSize || 16) + 1; scheduleSave()"
+              class="w-7 h-7 rounded border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-base">+</button>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500">Couleur</label>
+          <div class="flex items-center gap-2 mt-1">
+            <input :value="selectedTextLabel.color || '#111827'" @input="selectedTextLabel.color = $event.target.value; scheduleSave()"
+              type="color" class="w-10 h-9 rounded border border-gray-200 cursor-pointer" />
+            <input :value="selectedTextLabel.color || '#111827'" @input="selectedTextLabel.color = $event.target.value; scheduleSave()"
+              type="text" class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+          </div>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500">Style</label>
+          <div class="flex gap-2 mt-1">
+            <button @click="selectedTextLabel.bold = !selectedTextLabel.bold; scheduleSave()"
+              :class="selectedTextLabel.bold ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+              class="flex-1 py-1.5 rounded-lg text-sm font-bold transition">B</button>
+            <button @click="selectedTextLabel.italic = !selectedTextLabel.italic; scheduleSave()"
+              :class="selectedTextLabel.italic ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+              class="flex-1 py-1.5 rounded-lg text-sm italic transition">I</button>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500">Police</label>
+          <select v-model="selectedTextLabel.fontFamily" @change="scheduleSave"
+            class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm">
+            <option value="sans-serif">Sans-serif</option>
+            <option value="serif">Serif</option>
+            <option value="monospace">Monospace</option>
+            <option value="Georgia, serif">Georgia</option>
+            <option value="'Courier New', monospace">Courier New</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500">Rotation (°)</label>
+          <div class="flex items-center gap-2 mt-1">
+            <input v-model="selectedTextLabel.rotation" @input="scheduleSave" type="range" min="-180" max="180" step="1"
+              class="flex-1" />
+            <span class="text-sm font-semibold w-10 text-right">{{ selectedTextLabel.rotation || 0 }}°</span>
+          </div>
+        </div>
+        <button @click="removeSelected" class="w-full mt-2 py-2 rounded-lg bg-red-50 text-red-500 text-sm font-semibold hover:bg-red-100">
+          Supprimer
+        </button>
+      </div>
+
+      <!-- Propriétés d'une image -->
+      <div v-else-if="selectedImageLayer" class="flex flex-col gap-3">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide">Image</p>
+        <!-- Info fichier -->
+        <div class="px-3 py-2 bg-gray-50 rounded-lg text-sm text-gray-600 flex items-center justify-between">
+          <span class="truncate max-w-[120px]" :title="selectedImageLayer.fileName">{{ selectedImageLayer.fileName || 'image' }}</span>
+          <span class="text-xs text-gray-400 shrink-0 ml-2">{{ selectedImageLayer.fileSize ? Math.round(selectedImageLayer.fileSize / 1024) + ' kB' : '' }}</span>
+        </div>
+        <!-- Remplacer -->
+        <button @click="() => { pendingImagePos = { replaceId: selectedImageLayer.id }; imageFileInputRef.value?.click(); }"
+          class="w-full py-1.5 rounded-lg bg-gray-100 text-gray-600 text-sm font-semibold hover:bg-gray-200">
+          Remplacer l'image
+        </button>
+
+        <div class="border-t border-gray-100 pt-3">
+          <p class="text-xs font-bold text-gray-700 mb-2">Forme</p>
+          <!-- Scale -->
+          <div class="mb-2">
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-xs font-semibold text-gray-500">Échelle</label>
+              <span class="text-xs font-semibold text-gray-700">{{ Math.round((selectedImageLayer.scale ?? 1) * 100) }} %</span>
+            </div>
+            <input v-model.number="selectedImageLayer.scale" @input="scheduleSave" type="range" min="0.05" max="5" step="0.01" class="w-full" />
+          </div>
+          <!-- Rotation -->
+          <div class="mb-2">
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-xs font-semibold text-gray-500">Rotation</label>
+              <span class="text-xs font-semibold text-gray-700">{{ selectedImageLayer.rotation ?? 0 }} °</span>
+            </div>
+            <input v-model.number="selectedImageLayer.rotation" @input="scheduleSave" type="range" min="-180" max="180" step="1" class="w-full" />
+          </div>
+          <!-- Opacity -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-xs font-semibold text-gray-500">Opacité</label>
+              <span class="text-xs font-semibold text-gray-700">{{ Math.round((selectedImageLayer.opacity ?? 1) * 100) }} %</span>
+            </div>
+            <input v-model.number="selectedImageLayer.opacity" @input="scheduleSave" type="range" min="0" max="1" step="0.01" class="w-full" />
+          </div>
+        </div>
+
+        <div class="border-t border-gray-100 pt-3">
+          <label class="text-xs font-bold text-gray-700 mb-1 block">Couche</label>
+          <select v-model="selectedImageLayer.layer" @change="scheduleSave"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+            <option value="background">Arrière-plan</option>
+            <option value="foreground">Premier plan</option>
+          </select>
+        </div>
+
+        <button @click="removeSelected" class="w-full mt-2 py-2 rounded-lg bg-red-50 text-red-500 text-sm font-semibold hover:bg-red-100">
+          Supprimer
+        </button>
       </div>
 
       <!-- Propriétés d'une table individuelle dans une section -->
@@ -2313,14 +2886,53 @@ async function saveAll() {
           <div class="flex justify-between"><dt class="text-gray-400">Catégorie</dt><dd class="font-medium text-gray-700">{{ catById(selectedSeat.categoryId).name }}</dd></div>
         </dl>
         <div>
-          <label class="text-xs font-semibold text-gray-500">Changer la catégorie de ce siège</label>
+          <label class="text-xs font-semibold text-gray-500">Libellé</label>
+          <div class="flex gap-1.5 mt-1">
+            <input
+              :value="selectedSeat.label"
+              @input="async (e) => {
+                const row = seatRows.find(r => r.id === selectedSeat.row.id);
+                const lo = { ...(row.seatLabelOverrides || {}) };
+                const val = e.target.value.trim();
+                if (val === '' || val === selectedSeat.computedLabel) {
+                  delete lo[selectedSeat.posKey];
+                } else {
+                  lo[selectedSeat.posKey] = val;
+                }
+                row.seatLabelOverrides = lo;
+                selectedSeat.label = val || selectedSeat.computedLabel;
+                await adminApi.updateSeatRow(row.id, { seatLabelOverrides: lo }, props.venueId);
+                emit('changed');
+              }"
+              :placeholder="selectedSeat.computedLabel"
+              class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400"
+            />
+            <button
+              v-if="selectedSeat.label !== selectedSeat.computedLabel"
+              title="Réinitialiser"
+              @click="async () => {
+                const row = seatRows.find(r => r.id === selectedSeat.row.id);
+                const lo = { ...(row.seatLabelOverrides || {}) };
+                delete lo[selectedSeat.posKey];
+                row.seatLabelOverrides = lo;
+                selectedSeat.label = selectedSeat.computedLabel;
+                await adminApi.updateSeatRow(row.id, { seatLabelOverrides: lo }, props.venueId);
+                emit('changed');
+              }"
+              class="w-8 h-9 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-400 hover:text-gray-600 text-base"
+            >↺</button>
+          </div>
+          <p v-if="selectedSeat.label !== selectedSeat.computedLabel" class="text-[11px] text-indigo-500 mt-0.5">Libellé personnalisé · libellé calculé : {{ selectedSeat.computedLabel }}</p>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500">Catégorie</label>
           <select :value="selectedSeat.categoryId" @change="async (e) => {
               const row = seatRows.find(r => r.id === selectedSeat.row.id);
               const overrides = { ...(row.categoryOverrides || {}) };
               overrides[selectedSeat.posKey] = e.target.value;
               row.categoryOverrides = overrides;
               selectedSeat.categoryId = e.target.value;
-              await adminApi.updateSeatRow(row.id, { categoryOverrides: overrides }, venueId);
+              await adminApi.updateSeatRow(row.id, { categoryOverrides: overrides }, props.venueId);
               emit('changed');
             }"
             class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm">

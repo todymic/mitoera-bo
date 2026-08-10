@@ -295,13 +295,8 @@ watch(
 
 <template>
   <div class="bg-white rounded-2xl shadow-sm p-5 flex flex-col min-h-0 h-full">
-    <div class="flex items-center justify-between mb-1 shrink-0">
+    <div class="mb-1 shrink-0">
       <h3 class="font-bold text-gray-800">Aperçu du plan</h3>
-      <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
-        <button @click="zoomOut"   class="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-white rounded-md text-lg font-bold transition">−</button>
-        <button @click="zoomReset" class="px-2 h-7 flex items-center justify-center text-gray-500 hover:bg-white rounded-md text-xs font-semibold transition min-w-[44px]">{{ Math.round(zoom * 100) }}%</button>
-        <button @click="zoomIn"    class="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-white rounded-md text-lg font-bold transition">+</button>
-      </div>
     </div>
     <p class="text-xs text-gray-400 mb-3 shrink-0">Rendu identique à ce que verra le client. Survolez un siège pour les infos, cliquez pour le sélectionner.</p>
 
@@ -315,6 +310,13 @@ watch(
         @wheel.prevent="onWheel"
         @pointerdown="startPan"
       >
+        <!-- Zoom overlay — bas droite -->
+        <div class="absolute bottom-3 right-3 z-20 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm rounded-lg shadow p-0.5 pointer-events-auto">
+          <button @click.stop="zoomOut"   class="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-md text-lg font-bold transition">−</button>
+          <button @click.stop="zoomReset" class="px-2 h-7 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-md text-xs font-semibold transition min-w-[44px]">{{ Math.round(zoom * 100) }}%</button>
+          <button @click.stop="zoomIn"    class="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-md text-lg font-bold transition">+</button>
+        </div>
+
           <div
             class="absolute plan-canvas shadow-xl"
             :style="{ width: canvasWidth + 'px', height: canvasHeight + 'px', transform: `translate(${panX}px, ${panY}px) scale(${zoom})`, transformOrigin: '0 0' }"
