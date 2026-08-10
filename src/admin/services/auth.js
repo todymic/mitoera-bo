@@ -9,8 +9,18 @@ function currentMode() {
 
 export const apiMode = ref(currentMode());
 
+function isTokenValid(token) {
+  if (!token) return false;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
+}
+
 export const auth = {
-  loggedIn: ref(!!localStorage.getItem(TOKEN_KEY)),
+  loggedIn: ref(isTokenValid(localStorage.getItem(TOKEN_KEY))),
 
   getToken() {
     return localStorage.getItem(TOKEN_KEY);
@@ -27,7 +37,12 @@ export const auth = {
   },
 
   isLoggedIn() {
-    return !!localStorage.getItem(TOKEN_KEY);
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!isTokenValid(token)) {
+      if (token) auth.clear();
+      return false;
+    }
+    return true;
   },
 
   async login(email, password) {
