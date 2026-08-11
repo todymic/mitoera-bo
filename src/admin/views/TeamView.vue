@@ -6,7 +6,40 @@ import { workspace, workspaces } from '../services/workspace.js';
 const members  = ref([]);
 const loading  = ref(true);
 const error    = ref('');
-const menuOpen = ref(null); // member id with open action menu
+const menuOpen = ref(null);
+
+// Invite modal
+const showInvite   = ref(false);
+const inviteEmail  = ref('');
+const inviteLoading = ref(false);
+const inviteError  = ref('');
+const inviteSuccess = ref('');
+
+async function sendInvite() {
+  inviteError.value   = '';
+  inviteSuccess.value = '';
+  if (!inviteEmail.value) return;
+  inviteLoading.value = true;
+  try {
+    await apiFetch('/api/workspaces/invite', {
+      method: 'POST',
+      body: JSON.stringify({ email: inviteEmail.value }),
+    });
+    inviteSuccess.value = `Invitation envoyée à ${inviteEmail.value}`;
+    inviteEmail.value   = '';
+  } catch (e) {
+    inviteError.value = e.message;
+  } finally {
+    inviteLoading.value = false;
+  }
+}
+
+function closeInvite() {
+  showInvite.value    = false;
+  inviteEmail.value   = '';
+  inviteError.value   = '';
+  inviteSuccess.value = '';
+}
 
 const roleLabel = { owner: 'Admin', member: 'Membre' };
 
@@ -45,7 +78,7 @@ onMounted(load);
           </p>
         </div>
         <!-- Invite (placeholder) -->
-        <button class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition opacity-50 cursor-not-allowed" disabled title="Bientôt disponible">
+        <button @click="showInvite = true" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition">
           + Inviter un membre
         </button>
       </div>
@@ -163,4 +196,40 @@ onMounted(load);
 
     </div>
   </div>
+
+  <!-- Modal invitation -->
+  <Teleport to="body">
+    <div v-if="showInvite" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/40" @click="closeInvite"/>
+      <div class="relative bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <h2 class="text-lg font-bold text-gray-900 mb-1">Inviter un membre</h2>
+        <p class="text-sm text-gray-500 mb-5">
+          Un email d'invitation sera envoyé à l'adresse saisie.
+        </p>
+
+        <label class="block text-sm font-medium text-gray-700 mb-1">Adresse email</label>
+        <input
+          v-model="inviteEmail"
+          type="email"
+          placeholder="nom@exemple.com"
+          @keydown.enter="sendInvite"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4"
+        />
+
+        <div v-if="inviteError" class="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{{ inviteError }}</div>
+        <div v-if="inviteSuccess" class="mb-3 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">{{ inviteSuccess }}</div>
+
+        <div class="flex gap-2 justify-end">
+          <button @click="closeInvite" class="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition">Annuler</button>
+          <button
+            @click="sendInvite"
+            :disabled="inviteLoading || !inviteEmail"
+            class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold transition"
+          >
+            {{ inviteLoading ? 'Envoi…' : 'Envoyer l\'invitation' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
