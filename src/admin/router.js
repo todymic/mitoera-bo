@@ -13,10 +13,12 @@ const UsageView    = () => import('./views/UsageView.vue');
 const BillingView    = () => import('./views/BillingView.vue');
 const SettingsView   = () => import('./views/SettingsView.vue');
 const TeamView       = () => import('./views/TeamView.vue');
-const LoginView      = () => import('./components/LoginView.vue');
+const LoginView           = () => import('./components/LoginView.vue');
+const AcceptInvitationView = () => import('./views/AcceptInvitationView.vue');
 
 const routes = [
-  { path: '/login',         name: 'login',        component: LoginView, meta: { public: true } },
+  { path: '/login',              name: 'login',             component: LoginView,           meta: { public: true } },
+  { path: '/accept-invitation', name: 'accept-invitation', component: AcceptInvitationView, meta: { public: true } },
   { path: '/',              name: 'home',         component: HomeView },
   { path: '/plans',         name: 'plans',        component: PlansView },
   { path: '/plans/:id',     name: 'plan-editor',  component: EditorView },
