@@ -39,10 +39,6 @@ export const router = createRouter({
 });
 
 router.beforeEach((to) => {
-  // Si keyId+secret sont dans l'URL, on laisse passer — AdminApp.vue échange contre un JWT
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('keyId') && params.get('secret')) return true;
-
   if (!to.meta.public && !auth.isLoggedIn()) {
     return { name: 'login' };
   }
