@@ -65,8 +65,8 @@ onMounted(async () => {
 
 <style scoped>
 .fade-enter-active {
-  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   transform-origin: center center;
 }
 .fade-enter-from {
