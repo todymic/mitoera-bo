@@ -9,6 +9,7 @@ const planId  = params.get('planId');
 const eventId = params.get('eventId') || null;
 
 const ready = ref(false);
+const spinnerVisible = ref(true);
 const error = ref('');
 const plan  = ref(null);
 
@@ -31,23 +32,24 @@ onMounted(async () => {
     const venues = await adminApi.listVenues();
     plan.value = venues.find(p => p.id === planId) || null;
     ready.value = true;
+    setTimeout(() => { spinnerVisible.value = false; }, 80);
   } catch (e) {
+    spinnerVisible.value = false;
     error.value = e.message || 'Erreur de chargement';
   }
 });
 </script>
 
 <template>
-  <div style="height:100vh;display:flex;flex-direction:column;background:#fff;font-family:sans-serif;">
+  <div style="height:100vh;display:flex;flex-direction:column;background:#fff;font-family:sans-serif;position:relative;">
     <div v-if="error" style="padding:24px;color:#e53e3e;">{{ error }}</div>
 
-    <!-- Skeleton loader pendant le chargement -->
-    <div v-else-if="!ready" class="embed-skeleton">
-      <div class="embed-skeleton__toolbar"></div>
-      <div class="embed-skeleton__canvas">
-        <div class="embed-skeleton__pulse"></div>
+    <!-- Spinner loader -->
+    <Transition name="spinner-fade">
+      <div v-if="spinnerVisible" class="embed-spinner">
+        <div class="embed-spinner__ring"></div>
       </div>
-    </div>
+    </Transition>
 
     <Transition name="fade">
       <PlanEditor
@@ -78,33 +80,25 @@ onMounted(async () => {
   transform: scale(1);
 }
 
-.embed-skeleton {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-.embed-skeleton__toolbar {
-  height: 52px;
-  background: #f3f4f6;
-  border-bottom: 1px solid #e5e7eb;
-  flex-shrink: 0;
-}
-.embed-skeleton__canvas {
-  flex: 1;
+.embed-spinner {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fafafa;
+  pointer-events: none;
+  z-index: 10;
 }
-.embed-skeleton__pulse {
-  width: 48px;
-  height: 48px;
+.embed-spinner__ring {
+  width: 36px;
+  height: 36px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #6366f1;
   border-radius: 50%;
-  background: #e5e7eb;
-  animation: pulse 1.4s ease-in-out infinite;
+  animation: embed-spin 0.7s linear infinite;
 }
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.4; transform: scale(0.85); }
-}
+@keyframes embed-spin { to { transform: rotate(360deg); } }
+
+.spinner-fade-leave-active { transition: opacity 0.2s ease; }
+.spinner-fade-leave-to     { opacity: 0; }
 </style>

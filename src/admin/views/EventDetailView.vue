@@ -15,6 +15,8 @@ const event        = ref(null);
 const eventDetail  = ref(null);
 const categories   = ref([]);
 const loading      = ref(false);
+const spinnerVisible = ref(true);
+const contentReady   = ref(false);
 const activeTab    = ref(route.query.embed === 'true' ? 'status' : 'summary');
 const selectedSeats = ref(new Set());
 const updating     = ref(false);
@@ -46,7 +48,11 @@ async function load() {
     if (detail?.chartId) {
       categories.value = await adminApi.listCategories(detail.chartId);
     }
-  } finally { loading.value = false; }
+  } finally {
+    loading.value = false;
+    contentReady.value = true;
+    setTimeout(() => { spinnerVisible.value = false; }, 80);
+  }
 }
 
 let mercureEventSource = null;
@@ -243,7 +249,14 @@ async function applyStatus(status) {
 </script>
 
 <template>
-  <div class="flex flex-col h-full min-h-0">
+  <div class="flex flex-col h-full min-h-0" style="position:relative;">
+    <!-- Spinner loader -->
+    <Transition name="ev-spinner-fade">
+      <div v-if="spinnerVisible" class="ev-spinner">
+        <div class="ev-spinner__ring"></div>
+      </div>
+    </Transition>
+
     <!-- Header -->
     <div class="px-6 pt-4 pb-3 shrink-0 bg-gray-100 border-b border-gray-200">
       <div v-if="!isEmbed" class="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3 text-sm">
@@ -274,9 +287,8 @@ async function applyStatus(status) {
       </div>
     </div>
 
-    <div v-if="loading" class="flex-1 flex items-center justify-center text-gray-400">Chargement…</div>
-
-    <div v-else-if="eventDetail" class="flex-1 min-h-0 flex flex-col">
+    <Transition name="ev-fade">
+    <div v-if="contentReady && eventDetail" class="flex-1 min-h-0 flex flex-col">
 
       <!-- Stats bar — toujours visible -->
       <div class="bg-white border-b border-gray-200 px-4 py-3 shrink-0">
@@ -401,5 +413,38 @@ async function applyStatus(status) {
 
       </div><!-- fin contenu onglets -->
     </div><!-- fin eventDetail -->
+    </Transition>
   </div>
 </template>
+
+<style scoped>
+.ev-fade-enter-active {
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: center center;
+}
+.ev-fade-enter-from { opacity: 0; transform: scale(0.92); }
+.ev-fade-enter-to   { opacity: 1; transform: scale(1); }
+
+.ev-spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10;
+}
+.ev-spinner__ring {
+  width: 36px;
+  height: 36px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: ev-spin 0.7s linear infinite;
+}
+@keyframes ev-spin { to { transform: rotate(360deg); } }
+
+.ev-spinner-fade-leave-active { transition: opacity 0.2s ease; }
+.ev-spinner-fade-leave-to     { opacity: 0; }
+</style>
