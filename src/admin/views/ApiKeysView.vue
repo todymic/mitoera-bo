@@ -12,7 +12,7 @@ const newSecret  = ref(null); // { value, scope } affiché une seule fois après
 const publicKey  = computed(() => keys.value.find(k => k.scope === 'public'     && k.active) ?? null);
 const secretKey  = computed(() => keys.value.find(k => k.scope === 'backoffice' && k.active) ?? null);
 
-const BASE_URL = window.location.origin.replace(':5173', ':8000');
+const BASE_URL = import.meta.env.VITE_WIDGET_API_BASE ?? window.location.origin.replace(':5173', ':8000');
 const widgetSnippet = computed(() => {
   const key = publicKey.value?.keyId ?? 'pk_pub_…';
   return `<div id="mitoera-chart"></div>

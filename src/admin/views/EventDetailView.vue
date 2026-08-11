@@ -28,9 +28,10 @@ const TABS = [
 ];
 
 const widgetUrl = computed(() => {
-  if (!publicKey.value || !eventDetail.value?.id) return null;
-  const base = window.location.origin.replace(':3000', ':8000');
-  return `${base}/render.html?key=${publicKey.value}&event=${eventDetail.value.id}`;
+  if (!eventDetail.value?.id) return null;
+  const key  = publicKey.value ?? import.meta.env.VITE_PUBLIC_KEY ?? '';
+  const base = import.meta.env.VITE_WIDGET_API_BASE ?? window.location.origin.replace(':5173', ':8000');
+  return `${base}/render.html?key=${key}&event=${eventDetail.value.id}`;
 });
 
 async function load() {
