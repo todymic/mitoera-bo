@@ -4,9 +4,33 @@ import { useRoute, useRouter } from 'vue-router';
 import { auth, apiMode, switchMode } from './services/auth.js';
 import { workspace, workspaces, loadWorkspaces, switchWorkspace } from './services/workspace.js';
 
-// Token passé en URL depuis hetsika-bo (?token=...) — auto-login sans formulaire
-const urlToken = new URLSearchParams(window.location.search).get('token');
+// Auto-login via token JWT passé en URL (?token=...)
+const urlParams = new URLSearchParams(window.location.search);
+const urlToken  = urlParams.get('token');
 if (urlToken) auth.setToken(urlToken);
+
+// Auto-login via clé API (?keyId=sk_bo_xxx&secret=yyy) — échange contre un JWT embed
+const urlKeyId  = urlParams.get('keyId');
+const urlSecret = urlParams.get('secret');
+if (urlKeyId && urlSecret && !auth.isLoggedIn()) {
+  fetch('/api/auth/embed-token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyId: urlKeyId, secret: urlSecret }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.token) {
+        auth.setToken(data.token);
+        // Nettoie les credentials de l'URL sans recharger la page
+        const clean = new URL(window.location.href);
+        clean.searchParams.delete('keyId');
+        clean.searchParams.delete('secret');
+        window.history.replaceState({}, '', clean.toString());
+      }
+    })
+    .catch(() => {});
+}
 
 const isLoggedIn = auth.loggedIn;
 const router = useRouter();
