@@ -10,7 +10,14 @@ export async function loadWorkspaces() {
     const res = await apiFetch('/api/workspaces');
     const list = await res.json();
     workspaces.value = list;
-    workspace.value  = list.find(w => w.current) ?? list[0] ?? null;
+    const current = list.find(w => w.current) ?? list[0] ?? null;
+    workspace.value = current;
+
+    // JWT sans workspaceId (ancien token) — auto-switch sur le premier workspace
+    // pour obtenir un JWT enrichi sans forcer une déconnexion manuelle
+    if (current && !list.find(w => w.current)) {
+      await switchWorkspace(current.id);
+    }
   } catch {
     workspaces.value = [];
     workspace.value  = null;
