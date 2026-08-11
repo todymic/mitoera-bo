@@ -11,6 +11,18 @@ if (urlToken) auth.setToken(urlToken);
 const isLoggedIn = auth.loggedIn;
 const router = useRouter();
 function logout() { auth.clear(); workspace.value = null; workspaces.value = []; router.push({ name: 'login' }); }
+
+// Infos utilisateur extraites du JWT (pas d'appel API)
+const currentUser = computed(() => {
+  const token = auth.getToken?.() ?? localStorage.getItem('jwt_token');
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const email = payload.username ?? payload.email ?? '';
+    const name  = [payload.firstName, payload.lastName].filter(Boolean).join(' ') || email.split('@')[0];
+    return { email, name, initials: name.slice(0, 2).toUpperCase() };
+  } catch { return null; }
+});
 const isSandbox = computed(() => apiMode.value === 'sandbox');
 function toggleMode() { switchMode(isSandbox.value ? 'prod' : 'sandbox'); }
 
@@ -149,6 +161,17 @@ const navItems = [
         <span v-if="isSandbox">⚗️ Sandbox → Prod</span>
         <span v-else>⚗️ Sandbox</span>
       </button>
+
+      <!-- Utilisateur connecté -->
+      <div v-if="currentUser" class="hidden sm:flex items-center gap-2 shrink-0">
+        <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+          {{ currentUser.initials }}
+        </div>
+        <div class="leading-tight">
+          <p class="text-xs font-semibold text-gray-800 truncate max-w-[120px]">{{ currentUser.name }}</p>
+          <p class="text-xs text-gray-400 truncate max-w-[120px]">{{ currentUser.email }}</p>
+        </div>
+      </div>
 
       <button @click="logout" class="px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition shrink-0">
         Déconnexion
