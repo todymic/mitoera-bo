@@ -65,15 +65,17 @@ onMounted(async () => {
 
 <style scoped>
 .fade-enter-active {
-  transition: opacity 0.45s ease, transform 0.45s ease;
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: center center;
 }
 .fade-enter-from {
   opacity: 0;
-  transform: translateY(6px);
+  transform: scale(0.92);
 }
 .fade-enter-to {
   opacity: 1;
-  transform: translateY(0);
+  transform: scale(1);
 }
 
 .embed-skeleton {
