@@ -5,6 +5,7 @@ import { adminApi } from '../services/adminApi.js';
 const keys       = ref([]);
 const loading    = ref(false);
 const rotating   = ref(null); // 'public' | 'backoffice'
+const revoking   = ref(null); // 'public' | 'backoffice'
 const copied     = ref('');
 const newSecret  = ref(null); // { value, scope } affiché une seule fois après rotation
 
@@ -38,15 +39,23 @@ async function rotate(scope) {
   rotating.value = scope;
   newSecret.value = null;
   try {
-    // Révoquer l'ancienne clé si elle existe
     const existing = keys.value.find(k => k.scope === scope && k.active);
     if (existing) await adminApi.deleteApiKey(existing.id);
-    // Créer la nouvelle
     const label = scope === 'public' ? 'Clé publique' : 'Clé secrète';
     const res = await adminApi.createApiKey(label, scope);
     newSecret.value = { keyId: res.keyId, secret: res.secret, scope };
     await load();
   } finally { rotating.value = null; }
+}
+
+async function revoke(scope) {
+  if (!confirm('Révoquer cette clé ? Les intégrations utilisant cette clé cesseront de fonctionner.')) return;
+  revoking.value = scope;
+  try {
+    const existing = keys.value.find(k => k.scope === scope && k.active);
+    if (existing) await adminApi.deleteApiKey(existing.id);
+    await load();
+  } finally { revoking.value = null; }
 }
 
 function copy(text, id) {
@@ -97,11 +106,17 @@ onMounted(async () => {
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
             </svg>
           </button>
-          <button @click="rotate('backoffice')" :disabled="rotating === 'backoffice'" title="Régénérer"
+          <button @click="rotate('backoffice')" :disabled="rotating === 'backoffice' || revoking === 'backoffice'" title="Régénérer"
             class="text-gray-400 hover:text-gray-700 shrink-0 p-1 rounded hover:bg-gray-100 disabled:opacity-40"
             :class="{ 'animate-spin': rotating === 'backoffice' }">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+          </button>
+          <button @click="revoke('backoffice')" :disabled="rotating === 'backoffice' || revoking === 'backoffice'" title="Révoquer"
+            class="text-red-400 hover:text-red-600 shrink-0 p-1 rounded hover:bg-red-50 disabled:opacity-40">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
             </svg>
           </button>
         </div>
@@ -122,11 +137,17 @@ onMounted(async () => {
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
             </svg>
           </button>
-          <button @click="rotate('public')" :disabled="rotating === 'public'" title="Régénérer"
+          <button @click="rotate('public')" :disabled="rotating === 'public' || revoking === 'public'" title="Régénérer"
             class="text-gray-400 hover:text-gray-700 shrink-0 p-1 rounded hover:bg-gray-100 disabled:opacity-40"
             :class="{ 'animate-spin': rotating === 'public' }">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+          </button>
+          <button @click="revoke('public')" :disabled="rotating === 'public' || revoking === 'public'" title="Révoquer"
+            class="text-red-400 hover:text-red-600 shrink-0 p-1 rounded hover:bg-red-50 disabled:opacity-40">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 715.636 5.636m12.728 12.728L5.636 5.636"/>
             </svg>
           </button>
         </div>

@@ -1,22 +1,32 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import { auth } from './services/auth.js';
+import { auth, setEmbedApiKey, hasEmbedApiKey } from './services/auth.js';
 import PlanEditor from './components/PlanEditor.vue';
 import { adminApi } from './services/adminApi.js';
 
-const planId  = new URLSearchParams(window.location.search).get('planId');
-const eventId = new URLSearchParams(window.location.search).get('eventId') || null;
+const params  = new URLSearchParams(window.location.search);
+const planId  = params.get('planId');
+const eventId = params.get('eventId') || null;
 
 const ready = ref(false);
 const error = ref('');
-const plan = ref(null);
+const plan  = ref(null);
 
 onMounted(async () => {
   if (!planId) { error.value = "Paramètre planId manquant dans l'URL"; return; }
-  // Token transmis depuis hetsika-bo — auto-login
-  const urlToken = new URLSearchParams(window.location.search).get('token');
-  if (urlToken) auth.setToken(urlToken);
-  if (!auth.isLoggedIn()) { error.value = 'Non authentifié (token manquant)'; return; }
+
+  // Mode embed via API key (aucun compte mitoera requis)
+  const keyId  = params.get('keyId');
+  const secret = params.get('secret');
+  if (keyId && secret) {
+    setEmbedApiKey(keyId, secret);
+  } else {
+    // Fallback : JWT backoffice transmis en ?token= (usage interne BO)
+    const urlToken = params.get('token');
+    if (urlToken) auth.setToken(urlToken);
+    if (!auth.isLoggedIn()) { error.value = 'Non authentifié : fournir keyId + secret ou token'; return; }
+  }
+
   try {
     const venues = await adminApi.listVenues();
     plan.value = venues.find(p => p.id === planId) || null;

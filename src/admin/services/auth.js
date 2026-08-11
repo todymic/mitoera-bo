@@ -46,8 +46,7 @@ export const auth = {
   },
 
   async login(email, password) {
-    const base = getApiBase();
-    const res = await fetch(`${base}/auth/login`, {
+    const res = await fetch(`/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -74,23 +73,38 @@ export function switchMode(mode) {
   window.location.reload();
 }
 
+// Clé API pour le mode embed (pas de JWT, pas de localStorage)
+let _embedApiKey = null;
+
+export function setEmbedApiKey(keyId, secret) {
+  _embedApiKey = keyId && secret ? `${keyId}:${secret}` : null;
+}
+
+export function hasEmbedApiKey() {
+  return !!_embedApiKey;
+}
+
 export async function apiFetch(path, options = {}) {
-  const token = auth.getToken();
+  const authHeader = _embedApiKey
+    ? { Authorization: `Basic ${btoa(_embedApiKey)}` }
+    : (() => { const t = auth.getToken(); return t ? { Authorization: `Bearer ${t}` } : {}; })();
+
   const headers = {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...authHeader,
     ...options.headers,
   };
 
-  // Remplace le préfixe /api par /sandbox-api si on est en mode sandbox
   const url = path.startsWith('/api/')
     ? `${getApiBase()}${path.slice(4)}`
     : path;
   const res = await fetch(url, { ...options, headers });
 
   if (res.status === 401) {
-    auth.clear();
-    window.location.href = '/admin/login';
+    if (!_embedApiKey) {
+      auth.clear();
+      window.location.href = '/admin/login';
+    }
     throw new Error('SESSION_EXPIRED');
   }
 
