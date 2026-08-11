@@ -1,7 +1,8 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, onMounted, watch, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { auth, apiMode, switchMode } from './services/auth.js';
+import { workspace, workspaces, loadWorkspaces, switchWorkspace } from './services/workspace.js';
 
 // Token passé en URL depuis hetsika-bo (?token=...) — auto-login sans formulaire
 const urlToken = new URLSearchParams(window.location.search).get('token');
@@ -9,9 +10,21 @@ if (urlToken) auth.setToken(urlToken);
 
 const isLoggedIn = auth.loggedIn;
 const router = useRouter();
-function logout() { auth.clear(); router.push({ name: 'login' }); }
+function logout() { auth.clear(); workspace.value = null; workspaces.value = []; router.push({ name: 'login' }); }
 const isSandbox = computed(() => apiMode.value === 'sandbox');
 function toggleMode() { switchMode(isSandbox.value ? 'prod' : 'sandbox'); }
+
+onMounted(() => { if (auth.isLoggedIn()) loadWorkspaces(); });
+watch(isLoggedIn, (v) => { if (v) loadWorkspaces(); });
+
+// Workspace switcher dropdown
+const switcherOpen = ref(false);
+async function doSwitch(id) {
+  if (workspace.value?.id === id) { switcherOpen.value = false; return; }
+  await switchWorkspace(id);
+  switcherOpen.value = false;
+  window.location.reload();
+}
 
 const route = useRoute();
 const isEmbed = computed(() => route.query.embed === 'true');
@@ -60,6 +73,12 @@ const navItems = [
     match: (path) => path.startsWith('/profile'),
   },
   {
+    to: '/team',
+    label: 'Équipe',
+    icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
+    match: (path) => path.startsWith('/team'),
+  },
+  {
     to: '/settings',
     label: 'Paramètres',
     icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
@@ -82,10 +101,41 @@ const navItems = [
 
     <!-- Header -->
     <header class="h-14 bg-white border-b border-gray-200 flex items-center px-4 sm:px-6 shrink-0 z-10 gap-3">
-      <span class="text-lg sm:text-xl font-bold text-gray-900 flex-1 text-center">
-        Mitoera
-        <span v-if="isSandbox" class="ml-2 px-2 py-0.5 text-xs font-bold rounded-full bg-amber-400 text-amber-900">SANDBOX</span>
-      </span>
+      <div class="flex-1 flex items-center justify-center gap-2">
+        <span class="text-lg sm:text-xl font-bold text-gray-900">Mitoera</span>
+
+        <!-- Workspace switcher -->
+        <div v-if="workspace" class="relative hidden sm:block">
+          <button
+            @click="switcherOpen = !switcherOpen"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition"
+          >
+            <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+            {{ workspace.name }}
+            <svg class="w-3 h-3 transition-transform" :class="switcherOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+
+          <!-- Dropdown -->
+          <div v-if="switcherOpen" class="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1 overflow-hidden">
+            <button
+              v-for="w in workspaces"
+              :key="w.id"
+              @click="doSwitch(w.id)"
+              class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-left hover:bg-gray-50 transition"
+              :class="w.current ? 'text-indigo-700 font-semibold' : 'text-gray-700'"
+            >
+              <svg class="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+              <span class="flex-1 truncate">{{ w.name }}</span>
+              <svg v-if="w.current" class="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            </button>
+          </div>
+
+          <!-- Overlay to close dropdown -->
+          <div v-if="switcherOpen" class="fixed inset-0 z-40" @click="switcherOpen = false" />
+        </div>
+
+        <span v-if="isSandbox" class="ml-1 px-2 py-0.5 text-xs font-bold rounded-full bg-amber-400 text-amber-900">SANDBOX</span>
+      </div>
 
       <!-- Toggle Prod / Sandbox -->
       <button

@@ -12,6 +12,7 @@ const ProfileView  = () => import('./views/ProfileView.vue');
 const UsageView    = () => import('./views/UsageView.vue');
 const BillingView    = () => import('./views/BillingView.vue');
 const SettingsView   = () => import('./views/SettingsView.vue');
+const TeamView       = () => import('./views/TeamView.vue');
 const LoginView      = () => import('./components/LoginView.vue');
 
 const routes = [
@@ -26,6 +27,7 @@ const routes = [
   { path: '/usage',         name: 'usage',        component: UsageView },
   { path: '/billing',       name: 'billing',      component: BillingView },
   { path: '/settings',      name: 'settings',     component: SettingsView },
+  { path: '/team',          name: 'team',         component: TeamView },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ];
 
