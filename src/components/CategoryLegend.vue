@@ -27,18 +27,34 @@ function scrollBy(direction) {
 }
 
 let resizeObserver;
+let mutationObserver;
+
+function scheduleUpdate() {
+  // nextTick garantit que Vue a mis à jour le DOM,
+  // le requestAnimationFrame attend le paint navigateur pour avoir les vraies dimensions
+  nextTick(() => requestAnimationFrame(updateScrollState));
+}
 
 onMounted(() => {
-  nextTick(updateScrollState);
+  scheduleUpdate();
+
+  // Réagit aux redimensionnements de la fenêtre
   resizeObserver = new ResizeObserver(updateScrollState);
   if (scrollerRef.value) resizeObserver.observe(scrollerRef.value);
+
+  // Réagit à l'ajout/suppression de boutons dans le scroller
+  mutationObserver = new MutationObserver(scheduleUpdate);
+  if (scrollerRef.value) {
+    mutationObserver.observe(scrollerRef.value, { childList: true, subtree: false });
+  }
 });
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
+  mutationObserver?.disconnect();
 });
 
-watch(() => props.categories, () => nextTick(updateScrollState), { deep: true });
+watch(() => props.categories, scheduleUpdate, { deep: true });
 </script>
 
 <template>
