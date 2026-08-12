@@ -126,6 +126,16 @@ function go(m) { clearMessages(); mode.value = m; }
   <div class="min-h-screen flex items-center justify-center bg-gray-50">
     <div class="bg-white rounded-2xl shadow-sm p-10 w-full max-w-lg">
 
+      <!-- Logo -->
+      <div class="flex items-center gap-3 mb-8">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:#E8713A">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="10" width="4" height="8" rx="1"/><rect x="10" y="6" width="4" height="12" rx="1"/><rect x="17" y="10" width="4" height="8" rx="1"/>
+          </svg>
+        </div>
+        <span class="text-xl font-bold text-gray-900 tracking-tight">Mitoera</span>
+      </div>
+
       <!-- Login -->
       <template v-if="mode === 'login'">
         <h1 class="text-xl font-bold text-gray-800 mb-1">Connexion</h1>
