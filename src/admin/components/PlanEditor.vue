@@ -2780,6 +2780,11 @@ async function saveAll() {
             class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400" />
           <p class="text-[10px] text-gray-400 mt-0.5">Identifiant unique — préfixe des clés de sièges (section-rangée-siège)</p>
         </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500">Entrée la plus proche</label>
+          <input v-model="selectedSeatRow.entrance" @input="scheduleSave" placeholder="Ex: Entrée A, Porte Nord…"
+            class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400" />
+        </div>
         <div class="flex items-center justify-between">
           <label class="text-xs font-semibold text-gray-500">Afficher section</label>
           <button
