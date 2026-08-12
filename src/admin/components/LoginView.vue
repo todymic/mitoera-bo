@@ -127,19 +127,19 @@ function go(m) { clearMessages(); mode.value = m; }
     <div class="bg-white rounded-2xl shadow-sm p-10 w-full max-w-lg">
 
       <!-- Logo -->
-      <div class="flex items-center gap-3 mb-8">
-        <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:#E8713A">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <div class="flex flex-col items-center mb-8">
+        <div class="w-14 h-14 rounded-2xl flex items-center justify-center mb-3" style="background:#E8713A">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="10" width="4" height="8" rx="1"/><rect x="10" y="6" width="4" height="12" rx="1"/><rect x="17" y="10" width="4" height="8" rx="1"/>
           </svg>
         </div>
-        <span class="text-xl font-bold text-gray-900 tracking-tight">Mitoera</span>
+        <span class="text-2xl font-bold text-gray-900 tracking-tight">Mitoera</span>
       </div>
 
       <!-- Login -->
       <template v-if="mode === 'login'">
-        <h1 class="text-xl font-bold text-gray-800 mb-1">Connexion</h1>
-        <p class="text-xs text-gray-400 mb-6">Connectez-vous pour gérer les plans</p>
+        <h1 class="text-xl font-bold text-gray-800 mb-1 text-center">Connexion</h1>
+        <p class="text-xs text-gray-400 mb-6 text-center">Connectez-vous pour gérer les plans</p>
 
         <p v-if="message" class="text-xs text-green-600 mb-4 bg-green-50 p-2 rounded-lg">{{ message }}</p>
         <p v-if="error"   class="text-xs text-red-500 mb-4 bg-red-50 p-2 rounded-lg">{{ error }}</p>
@@ -169,7 +169,8 @@ function go(m) { clearMessages(); mode.value = m; }
         </div>
 
         <button :disabled="loading" @click="submitLogin"
-          class="w-full py-3 rounded-lg bg-gray-900 text-white text-base font-semibold hover:bg-gray-700 disabled:opacity-50">
+          class="w-full py-3 rounded-lg text-white text-base font-semibold disabled:opacity-50"
+          style="background:#E8713A">
           {{ loading ? 'Connexion…' : 'Se connecter' }}
         </button>
 
