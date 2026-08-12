@@ -3,7 +3,123 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Mitoera — Prenez place</title>
+
+    <!-- ═══ SEO primaire ═══════════════════════════════════════════════════ -->
+    <title>Mitoera — Plan de salle interactif & réservation de place en ligne</title>
+    <meta name="description" content="Mitoera est le module de réservation de place le plus simple à installer sur votre site. Créez un plan de salle interactif, vendez vos billets siège par siège en temps réel. Stades, théâtres, amphithéâtres.">
+    <meta name="keywords" content="réservation de place, plan de salle interactif, billetterie en ligne, réservation de siège, ticket en ligne, système de réservation, salle de spectacle, stade, théâtre, amphithéâtre, vente de billets, billetterie numérique">
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+    <link rel="canonical" href="https://mitoera.com/">
+
+    <!-- ═══ Open Graph (Facebook, WhatsApp, LinkedIn) ══════════════════════ -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://mitoera.com/">
+    <meta property="og:site_name" content="Mitoera">
+    <meta property="og:title" content="Mitoera — Plan de salle interactif & réservation de place en ligne">
+    <meta property="og:description" content="Installez un plan de salle interactif sur votre site en quelques minutes. Vos visiteurs réservent siège par siège, en temps réel. Zéro double encaissement.">
+    <meta property="og:image" content="https://mitoera.com/renderer_2.png">
+    <meta property="og:image:width" content="1920">
+    <meta property="og:image:height" content="1035">
+    <meta property="og:image:alt" content="Widget de réservation de place Mitoera — plan de salle interactif">
+    <meta property="og:locale" content="fr_FR">
+
+    <!-- ═══ Twitter / X Card ══════════════════════════════════════════════ -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Mitoera — Plan de salle interactif & réservation de place en ligne">
+    <meta name="twitter:description" content="Installez un plan de salle interactif sur votre site en quelques minutes. Vos visiteurs réservent siège par siège, en temps réel.">
+    <meta name="twitter:image" content="https://mitoera.com/renderer_2.png">
+
+    <!-- ═══ Données structurées JSON-LD ════════════════════════════════════ -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://mitoera.com/#organization",
+          "name": "Mitoera",
+          "url": "https://mitoera.com",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://mitoera.com/favicon.ico"
+          },
+          "description": "Mitoera est un module de réservation de place en ligne qui transforme n'importe quelle salle en plan interactif.",
+          "sameAs": [
+            "https://www.facebook.com/mitoera",
+            "https://www.linkedin.com/company/mitoera"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://mitoera.com/#website",
+          "url": "https://mitoera.com",
+          "name": "Mitoera",
+          "publisher": { "@id": "https://mitoera.com/#organization" },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://mitoera.com/?s={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://mitoera.com/#product",
+          "name": "Mitoera — Plan de salle interactif",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web",
+          "url": "https://mitoera.com",
+          "description": "Module de réservation de place en ligne avec plan de salle interactif. Vendez vos billets siège par siège en temps réel, directement depuis votre site événementiel.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "EUR",
+            "description": "Essai gratuit disponible"
+          },
+          "featureList": [
+            "Plan de salle interactif personnalisable",
+            "Réservation de place en temps réel",
+            "Verrouillage instantané des sièges",
+            "Paiements locaux et internationaux",
+            "Contrôle d'accès QR",
+            "Tableau de bord en temps réel",
+            "Intégration en quelques lignes de code"
+          ],
+          "screenshot": "https://mitoera.com/renderer_2.png",
+          "provider": { "@id": "https://mitoera.com/#organization" }
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "Comment installer un plan de salle interactif sur mon site ?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Il suffit d'ajouter deux lignes de code HTML sur votre site : un script et une div avec vos attributs de configuration. Le plan de salle apparaît instantanément."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Mitoera fonctionne-t-il pour les théâtres et les stades ?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Oui. Mitoera est conçu pour tout type de salle : stades, théâtres, amphithéâtres, salles de conférence. L'éditeur de plan permet de dessiner n'importe quelle configuration."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Deux personnes peuvent-elles réserver le même siège en même temps ?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Non. Mitoera verrouille chaque siège en temps réel dès qu'un visiteur le sélectionne, évitant tout double encaissement."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet">
@@ -322,8 +438,8 @@
     <section class="hero">
         <div class="wrap hero-inner reveal">
             <span class="eyebrow" style="justify-content:center">Réservation de salle</span>
-            <h1>Dessinez votre salle.<br><em>Vendez chaque place.</em></h1>
-            <p class="lead">Mitoera s'installe directement sur votre site événementiel et transforme n'importe quelle salle — stade, théâtre, amphithéâtre — en un plan interactif que vos visiteurs réservent siège par siège, en quelques secondes.</p>
+            <h1>Réservation de place en ligne<br><em>par plan de salle interactif.</em></h1>
+            <p class="lead">Mitoera installe un plan de salle interactif directement sur votre site : stade, théâtre, amphithéâtre. Vos visiteurs réservent et paient siège par siège, en temps réel, sans quitter votre site.</p>
             <div class="hero-actions">
                 <a href="#contact" class="btn btn-primary">Commencer gratuitement</a>
                 <a href="#editor" class="btn btn-outline">Voir l'éditeur en action ↓</a>
