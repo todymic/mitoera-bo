@@ -14,7 +14,7 @@ const loading = ref(true);
 const formOpen = ref(false);
 const editing = ref(null);
 const blank = () => ({
-  label: '', categoryId: '', top: 200, left: 200, rows: 4, cols: 9, shape: 'square', seatSize: 18,
+  label: '', categoryId: '', entrance: '', top: 200, left: 200, rows: 4, cols: 9, shape: 'square', seatSize: 18,
   rowFormat: 'A-Z', rowDirection: 'normal', colFormat: '1-9', colDirection: 'normal',
 });
 const form = ref(blank());
@@ -85,6 +85,7 @@ async function remove(r) {
           <th class="pb-2 font-semibold">Bloc</th>
           <th class="pb-2 font-semibold">Catégorie</th>
           <th class="pb-2 font-semibold">Rangs × Sièges</th>
+          <th class="pb-2 font-semibold">Entrée</th>
           <th class="pb-2 font-semibold">Forme / Taille</th>
           <th class="pb-2 font-semibold">Total sièges</th>
           <th class="pb-2"></th>
@@ -100,6 +101,7 @@ async function remove(r) {
             </span>
           </td>
           <td class="py-2 text-gray-500">{{ r.rows }} × {{ r.cols }}</td>
+          <td class="py-2 text-gray-500">{{ r.entrance || '—' }}</td>
           <td class="py-2 text-gray-500">{{ r.shape === 'round' ? 'Rond' : 'Carré' }} · {{ r.seatSize }}px</td>
           <td class="py-2 text-gray-500">{{ r.rows * r.cols }}</td>
           <td class="py-2 text-right">
@@ -108,7 +110,7 @@ async function remove(r) {
           </td>
         </tr>
         <tr v-if="seatRows.length === 0">
-          <td colspan="6" class="py-6 text-center text-gray-400">Aucun bloc de sièges. Ajoutez-en un.</td>
+          <td colspan="7" class="py-6 text-center text-gray-400">Aucun bloc de sièges. Ajoutez-en un.</td>
         </tr>
       </tbody>
     </table>
@@ -120,6 +122,10 @@ async function remove(r) {
 
         <label class="text-xs font-semibold text-gray-500">Nom du bloc</label>
         <input v-model="form.label" type="text" placeholder="Ex: Signature Gauche"
+          class="w-full mt-1 mb-3 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400" />
+
+        <label class="text-xs font-semibold text-gray-500">Entrée la plus proche</label>
+        <input v-model="form.entrance" type="text" placeholder="Ex: Entrée A, Porte Nord…"
           class="w-full mt-1 mb-3 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400" />
 
         <label class="text-xs font-semibold text-gray-500">Catégorie</label>
