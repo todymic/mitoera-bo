@@ -215,6 +215,16 @@
             .cta-band{padding:38px 24px;border-radius:22px}
         }
         svg{display:block}
+
+        /* screenshot showcase */
+        .sc-tab{display:inline-flex;align-items:center;gap:7px;padding:10px 20px;border-radius:100px;border:1.5px solid var(--line);background:#fff;color:var(--muted);font-size:.88rem;font-weight:700;cursor:pointer;transition:all .25s var(--ease)}
+        .sc-tab--active{background:var(--ink);color:#fff;border-color:var(--ink)}
+        .sc-browser{border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-lg);border:1px solid var(--line);max-width:1100px;margin:0 auto}
+        .sc-browser__bar{display:flex;align-items:center;gap:7px;padding:12px 18px;background:#f3f4f6;border-bottom:1px solid var(--line)}
+        .sc-dot{width:11px;height:11px;border-radius:50%;display:block;flex-shrink:0}
+        .sc-browser__url{margin-left:12px;flex:1;background:#fff;border:1px solid var(--line);border-radius:100px;padding:5px 14px;font-size:.78rem;color:var(--muted);font-family:'Courier New',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .sc-browser__body{background:#fff;line-height:0}
+        .sc-browser__body picture{display:block;transition:opacity .3s var(--ease)}
     </style>
 </head>
 <body>
@@ -299,52 +309,39 @@
         <div class="head reveal">
             <span class="eyebrow" style="justify-content:center">L'éditeur de plan de salle</span>
             <h2>Chaque siège, <em>à sa place exacte.</em></h2>
-            <p>Ajoutez vos rangées, coloriez vos catégories, ajustez vos tarifs. Essayez le plan ci-dessous comme le ferait l'un de vos clients.</p>
+            <p>Dessinez votre salle avec l'éditeur, publiez le widget sur votre site. Vos visiteurs réservent siège par siège, en temps réel.</p>
         </div>
-        <div class="editor reveal">
-            <div class="editor__toolbar">
-                <div class="tb-group">
-                    <p class="tb-title">Outils</p>
-                    <button class="tool-btn" id="addRowBtn">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                        Ajouter une rangée
-                    </button>
-                    <button class="tool-btn" id="resetToolBtn">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.35"/><path d="M21 3v6h-6"/></svg>
-                        Réinitialiser
-                    </button>
-                </div>
-                <div class="tb-group">
-                    <p class="tb-title">Catégories</p>
-                    <button class="cat-row" data-pulse-category="vip">
-                        <span class="cat-dot cat-dot--vip"></span><span class="cat-row__name">VIP</span><span class="cat-row__price">45&nbsp;€</span>
-                    </button>
-                    <button class="cat-row" data-pulse-category="standard">
-                        <span class="cat-dot cat-dot--standard"></span><span class="cat-row__name">Standard</span><span class="cat-row__price">25&nbsp;€</span>
-                    </button>
-                    <button class="cat-row" data-pulse-category="balcon">
-                        <span class="cat-dot cat-dot--balcon"></span><span class="cat-row__name">Balcon</span><span class="cat-row__price">15&nbsp;€</span>
-                    </button>
-                </div>
-                <div class="tb-group">
-                    <p class="tb-title">Zoom</p>
-                    <div class="zoom-row">
-                        <button class="zoom-btn" id="zoomOut" aria-label="Réduire">−</button>
-                        <span class="zoom-label" id="zoomLabel">100%</span>
-                        <button class="zoom-btn" id="zoomIn" aria-label="Agrandir">+</button>
-                    </div>
-                </div>
+
+        <!-- Switcher onglets -->
+        <div class="reveal" style="display:flex;justify-content:center;gap:8px;margin-bottom:28px">
+            <button class="sc-tab sc-tab--active" data-tab="editor" onclick="switchTab('editor',this)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                Éditeur de plan
+            </button>
+            <button class="sc-tab" data-tab="render" onclick="switchTab('render',this)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+                Widget de réservation
+            </button>
+        </div>
+
+        <!-- Fenêtre navigateur fictive -->
+        <div class="sc-browser reveal">
+            <div class="sc-browser__bar">
+                <span class="sc-dot" style="background:#ef6a4d"></span>
+                <span class="sc-dot" style="background:#f2913a"></span>
+                <span class="sc-dot" style="background:#3bb273"></span>
+                <div class="sc-browser__url" id="scUrl">mitoera.com/admin/plans/palais-de-sport</div>
             </div>
-            <div class="editor__canvas">
-                <div class="stage-label">SCÈNE</div>
-                <div class="stage-wrap" id="stageWrap"></div>
+            <div class="sc-browser__body">
+                <picture id="scEditor">
+                    <source srcset="/editor.webp" type="image/webp">
+                    <img src="/editor.png" alt="Éditeur de plan de salle Mitoera" loading="lazy" style="width:100%;display:block">
+                </picture>
+                <picture id="scRender" style="display:none">
+                    <source srcset="/renderer_2.webp" type="image/webp">
+                    <img src="/renderer_2.png" alt="Widget de réservation Mitoera" loading="lazy" style="width:100%;display:block">
+                </picture>
             </div>
-            <aside class="editor__sidebar">
-                <h3>Votre sélection</h3>
-                <ul class="cart-list" id="cartList"><li class="cart-empty">Cliquez sur un siège pour commencer.</li></ul>
-                <div class="cart-total"><span>Total</span><strong id="cartTotal">0 €</strong></div>
-                <button class="btn btn-primary" style="width:100%;justify-content:center" id="addToCartBtn">Ajouter au panier</button>
-            </aside>
         </div>
     </section>
 
@@ -579,6 +576,17 @@
             setTimeout(function(){addToCartBtn.textContent=original},1800);
         });
     })();
+
+    function switchTab(tab, btn) {
+        document.querySelectorAll('.sc-tab').forEach(function(b){ b.classList.remove('sc-tab--active'); });
+        btn.classList.add('sc-tab--active');
+        var isRender = tab === 'render';
+        document.getElementById('scEditor').style.display = isRender ? 'none' : 'block';
+        document.getElementById('scRender').style.display = isRender ? 'block' : 'none';
+        document.getElementById('scUrl').textContent = isRender
+            ? 'mitoera.com/render.html?key=pk_pub_…&event=…'
+            : 'mitoera.com/admin/plans/palais-de-sport';
+    }
 </script>
 </body>
 </html>
