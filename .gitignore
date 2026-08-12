@@ -5,7 +5,6 @@ src/admin/.DS_Store
 dist/
 certs/
 node_modules/
-package-lock.json
 .DS_Store
 landing.html
 .claude/
