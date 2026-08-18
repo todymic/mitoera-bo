@@ -69,6 +69,7 @@ export const adminApi = {
 
   // ---------- VENUES ----------
   async listVenues() { return (await apiFetch('/api/charts')).json(); },
+  async getVenue(id) { return (await apiFetch(`/api/charts/${id}`)).json(); },
   async createVenue(payload) {
     return (await apiFetch('/api/charts', { method: 'POST', body: JSON.stringify({ name: payload.name, slug: slugify(payload.name) }) })).json();
   },

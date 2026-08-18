@@ -25,12 +25,19 @@ onMounted(async () => {
     // Fallback : JWT backoffice transmis en ?token= (usage interne BO)
     const urlToken = params.get('token');
     if (urlToken) auth.setToken(urlToken);
-    if (!auth.isLoggedIn()) { error.value = 'Non authentifié : fournir keyId + secret ou token'; return; }
+    if (!auth.isLoggedIn()) {
+      // Token absent ou déjà expiré à l'ouverture (onglet resté ouvert
+      // longtemps) — même traitement que le 401 en cours de session dans
+      // apiFetch() : on renvoie vers le login plutôt que d'afficher une
+      // erreur bloquante sans issue.
+      auth.clear();
+      window.location.href = '/login';
+      return;
+    }
   }
 
   try {
-    const venues = await adminApi.listVenues();
-    plan.value = venues.find(p => p.id === planId) || null;
+    plan.value = await adminApi.getVenue(planId);
     ready.value = true;
     setTimeout(() => { spinnerVisible.value = false; }, 80);
   } catch (e) {
