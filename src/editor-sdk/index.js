@@ -1,11 +1,11 @@
 const API_BASE   = 'https://api.mitoera.com';
 const EDITOR_URL = 'https://bo.mitoera.com/embed-editor.html';
 
-async function fetchEmbedToken(apiKey, secret) {
+async function fetchEmbedToken(keyId, secret) {
   const res = await fetch(`${API_BASE}/api/auth/embed-token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keyId: apiKey, secret }),
+    body: JSON.stringify({ keyId, secret }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -14,36 +14,39 @@ async function fetchEmbedToken(apiKey, secret) {
   return (await res.json()).token;
 }
 
-class MitoeraEditor {
-  constructor({ container, planId, eventId = null, apiKey, secret }) {
-    if (!container || !planId || !apiKey || !secret) {
-      throw new Error('MitoeraEditor: container, planId, apiKey et secret sont requis');
+class MitoeraChartDesigner {
+  constructor({ divId, secretKey, chartKey, eventKey = null }) {
+    if (!divId || !secretKey || !chartKey) {
+      throw new Error('MitoeraChartDesigner: divId, secretKey et chartKey sont requis');
     }
 
-    const el = typeof container === 'string'
-      ? document.querySelector(container)
-      : container;
+    // secretKey format: "keyId:secret"
+    const colonIndex = secretKey.indexOf(':');
+    if (colonIndex === -1) throw new Error('MitoeraChartDesigner: secretKey doit être au format "keyId:secret"');
 
-    if (!el) throw new Error(`MitoeraEditor: conteneur introuvable "${container}"`);
-
-    this._el = el;
-    this._init(el, planId, eventId, apiKey, secret);
+    this._divId    = divId;
+    this._keyId    = secretKey.slice(0, colonIndex);
+    this._secret   = secretKey.slice(colonIndex + 1);
+    this._chartKey = chartKey;
+    this._eventKey = eventKey;
   }
 
-  async _init(el, planId, eventId, apiKey, secret) {
-    // Placeholder pendant le chargement du token
+  async render() {
+    const el = document.getElementById(this._divId);
+    if (!el) throw new Error(`MitoeraChartDesigner: div#${this._divId} introuvable`);
+
     el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:sans-serif;color:#666">Chargement…</div>';
 
     try {
-      const token = await fetchEmbedToken(apiKey, secret);
+      const token = await fetchEmbedToken(this._keyId, this._secret);
 
-      const params = new URLSearchParams({ planId, token });
-      if (eventId) params.set('eventId', eventId);
+      const params = new URLSearchParams({ planId: this._chartKey, token });
+      if (this._eventKey) params.set('eventId', this._eventKey);
 
       const iframe = document.createElement('iframe');
-      iframe.src    = `${EDITOR_URL}?${params}`;
+      iframe.src         = `${EDITOR_URL}?${params}`;
       iframe.style.cssText = 'width:100%;height:100%;border:none;display:block';
-      iframe.allow  = 'fullscreen';
+      iframe.allow       = 'fullscreen';
 
       el.innerHTML = '';
       el.appendChild(iframe);
@@ -51,15 +54,19 @@ class MitoeraEditor {
     } catch (e) {
       el.innerHTML = `<div style="padding:16px;color:#e53e3e;font-family:sans-serif">${e.message}</div>`;
     }
+
+    return this;
   }
 
   destroy() {
-    if (this._el) this._el.innerHTML = '';
+    const el = document.getElementById(this._divId);
+    if (el) el.innerHTML = '';
   }
 }
 
 if (typeof window !== 'undefined') {
-  window.MitoeraEditor = MitoeraEditor;
+  window.mitoera = window.mitoera || {};
+  window.mitoera.ChartDesigner = MitoeraChartDesigner;
 }
 
-export default MitoeraEditor;
+export default MitoeraChartDesigner;
