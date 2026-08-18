@@ -56,6 +56,11 @@ export default defineConfig({
         admin: resolve(__dirname, 'admin.html'),
         widget: resolve(__dirname, 'widget.html'),
         embedEditor: resolve(__dirname, 'embed-editor.html'),
+        mitoeraEditor: resolve(__dirname, 'src/editor-sdk/index.js'),
+      },
+      output: {
+        entryFileNames: (chunk) =>
+          chunk.name === 'mitoeraEditor' ? 'mitoera-editor.js' : 'assets/[name]-[hash].js',
       },
     },
   },
