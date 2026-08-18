@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import { auth, setEmbedApiKey, hasEmbedApiKey } from './services/auth.js';
+import { auth } from './services/auth.js';
 import PlanEditor from './components/PlanEditor.vue';
 import { adminApi } from './services/adminApi.js';
 
@@ -16,24 +16,13 @@ const plan  = ref(null);
 onMounted(async () => {
   if (!planId) { error.value = "Paramètre planId manquant dans l'URL"; return; }
 
-  // Mode embed via API key (aucun compte mitoera requis)
-  const keyId  = params.get('keyId');
-  const secret = params.get('secret');
-  if (keyId && secret) {
-    setEmbedApiKey(keyId, secret);
-  } else {
-    // Fallback : JWT backoffice transmis en ?token= (usage interne BO)
-    const urlToken = params.get('token');
-    if (urlToken) auth.setToken(urlToken);
-    if (!auth.isLoggedIn()) {
-      // Token absent ou déjà expiré à l'ouverture (onglet resté ouvert
-      // longtemps) — même traitement que le 401 en cours de session dans
-      // apiFetch() : on renvoie vers le login plutôt que d'afficher une
-      // erreur bloquante sans issue.
-      auth.clear();
-      window.location.href = '/login';
-      return;
-    }
+  // Auth : token JWT court-durée obtenu côté serveur via POST /api/auth/embed-token
+  const urlToken = params.get('token');
+  if (urlToken) auth.setToken(urlToken);
+  if (!auth.isLoggedIn()) {
+    error.value = "Token manquant ou expiré. Générez un token via POST /api/auth/embed-token.";
+    spinnerVisible.value = false;
+    return;
   }
 
   try {
