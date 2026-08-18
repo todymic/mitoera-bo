@@ -268,18 +268,6 @@ function zoomIn()    { setZoom(zoom.value + ZOOM_STEP); }
 function zoomOut()   { setZoom(zoom.value - ZOOM_STEP); }
 function zoomReset() { fitToView(); }
 
-function onWheel(ev) {
-  ev.preventDefault();
-  const el = viewportEl.value;
-  if (!el) return;
-  const prev = zoom.value;
-  const factor = ev.deltaY < 0 ? 1.12 : 0.9;
-  const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, prev * factor));
-  const rect = el.getBoundingClientRect();
-  panX.value = (ev.clientX - rect.left) - ((ev.clientX - rect.left) - panX.value) * (next / prev);
-  panY.value = (ev.clientY - rect.top)  - ((ev.clientY - rect.top)  - panY.value) * (next / prev);
-  zoom.value = next;
-}
 
 let panWasDrag = false;
 
@@ -389,7 +377,6 @@ watch([() => props.seatRows, () => props.zones, () => props.tableSections, () =>
       class="flex-1 min-h-0 overflow-hidden rounded-xl relative bg-gray-400"
       :class="panning.active ? 'cursor-grabbing' : 'cursor-grab'"
       style="touch-action: none;"
-      @wheel.prevent="onWheel"
       @pointerdown="startPan"
       @click="onViewportClick"
     >
