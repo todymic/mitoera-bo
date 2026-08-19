@@ -95,11 +95,14 @@ onMounted(async () => {
     <div v-if="newSecret" class="mb-6 bg-amber-50 border border-amber-300 rounded-xl p-4">
       <p class="text-xs font-semibold text-amber-800 mb-2">⚠ Secret généré — sauvegardez-le maintenant, il ne sera plus affiché.</p>
       <div class="flex items-center gap-2">
-        <code class="flex-1 bg-white border border-amber-200 rounded-lg px-3 py-2 text-sm font-mono break-all">{{ newSecret.secret }}</code>
-        <button @click="copy(newSecret.secret, 'new-secret')" class="text-xs px-2 py-1.5 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-800 shrink-0">
+        <code class="flex-1 bg-white border border-amber-200 rounded-lg px-3 py-2 text-sm font-mono break-all">
+          {{ newSecret.scope === 'embed' ? `${newSecret.keyId}:${newSecret.secret}` : newSecret.secret }}
+        </code>
+        <button @click="copy(newSecret.scope === 'embed' ? `${newSecret.keyId}:${newSecret.secret}` : newSecret.secret, 'new-secret')" class="text-xs px-2 py-1.5 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-800 shrink-0">
           {{ copied === 'new-secret' ? '✓' : 'Copier' }}
         </button>
       </div>
+      <p v-if="newSecret.scope === 'embed'" class="text-xs text-amber-700 mt-2">Utilisez ce string complet comme <code class="bg-amber-100 px-1 rounded">secretKey</code> dans le SDK.</p>
       <button @click="newSecret = null" class="mt-2 text-xs text-amber-600 underline">Compris</button>
     </div>
 
