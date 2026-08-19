@@ -4,13 +4,14 @@ import { adminApi } from '../services/adminApi.js';
 
 const keys       = ref([]);
 const loading    = ref(false);
-const rotating   = ref(null); // 'public' | 'backoffice'
-const revoking   = ref(null); // 'public' | 'backoffice'
+const rotating   = ref(null);
+const revoking   = ref(null);
 const copied     = ref('');
-const newSecret  = ref(null); // { value, scope } affiché une seule fois après rotation
+const newSecret  = ref(null);
 
 const publicKey  = computed(() => keys.value.find(k => k.scope === 'public'     && k.active) ?? null);
 const secretKey  = computed(() => keys.value.find(k => k.scope === 'backoffice' && k.active) ?? null);
+const embedKey   = computed(() => keys.value.find(k => k.scope === 'embed'      && k.active) ?? null);
 
 const BASE_URL = window.location.origin.replace(':5173', ':8000');
 const widgetSnippet = computed(() => {
@@ -29,6 +30,19 @@ const widgetSnippet = computed(() => {
 <\/script>`;
 });
 
+const embedSnippet = computed(() => {
+  const key = embedKey.value?.keyId ?? 'pk_emb_…';
+  return `<div id="chartDesigner" style="height:600px"></div>
+<script src="https://bo.mitoera.com/mitoera-editor.js"><\/script>
+<script>
+  new mitoera.ChartDesigner({
+    divId: 'chartDesigner',
+    secretKey: '${key}:VOTRE_SECRET',
+    chartKey: 'UUID_DU_PLAN',
+  }).render();
+<\/script>`;
+});
+
 async function load() {
   loading.value = true;
   try { keys.value = await adminApi.listApiKeys(); }
@@ -41,7 +55,7 @@ async function rotate(scope) {
   try {
     const existing = keys.value.find(k => k.scope === scope && k.active);
     if (existing) await adminApi.deleteApiKey(existing.id);
-    const label = scope === 'public' ? 'Clé publique' : 'Clé secrète';
+    const label = scope === 'public' ? 'Clé publique' : scope === 'embed' ? 'Clé embed' : 'Clé secrète';
     const res = await adminApi.createApiKey(label, scope);
     newSecret.value = { keyId: res.keyId, secret: res.secret, scope };
     await load();
@@ -154,8 +168,39 @@ onMounted(async () => {
         <p class="text-xs text-gray-400 mt-1">Intégrée dans le widget client (mode vente).</p>
       </div>
 
+      <!-- Clé embed (plan editor) -->
+      <div class="mb-6">
+        <h3 class="font-semibold text-gray-900 mb-2">Clé embed (éditeur de plan)</h3>
+        <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-3">
+          <code class="flex-1 text-sm font-mono text-gray-700 truncate">{{ embedKey?.keyId ?? '—' }}</code>
+          <button v-if="embedKey" @click="copy(embedKey?.keyId, 'emb')" title="Copier"
+            class="text-gray-400 hover:text-gray-700 shrink-0 p-1 rounded hover:bg-gray-100">
+            <svg v-if="copied !== 'emb'" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+            </svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+          </button>
+          <button @click="rotate('embed')" :disabled="rotating === 'embed' || revoking === 'embed'" :title="embedKey ? 'Régénérer' : 'Générer'"
+            class="text-gray-400 hover:text-gray-700 shrink-0 p-1 rounded hover:bg-gray-100 disabled:opacity-40"
+            :class="{ 'animate-spin': rotating === 'embed' }">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+          </button>
+          <button v-if="embedKey" @click="revoke('embed')" :disabled="rotating === 'embed' || revoking === 'embed'" title="Révoquer"
+            class="text-red-400 hover:text-red-600 shrink-0 p-1 rounded hover:bg-red-50 disabled:opacity-40">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+            </svg>
+          </button>
+        </div>
+        <p class="text-xs text-gray-400 mt-1">À utiliser avec <code class="bg-gray-100 px-1 rounded">mitoera-editor.js</code> pour intégrer l'éditeur de plan dans une application tierce.</p>
+      </div>
+
       <!-- Widget snippet -->
-      <div class="bg-white border border-gray-200 rounded-xl p-5">
+      <div class="bg-white border border-gray-200 rounded-xl p-5 mb-4">
         <h3 class="font-semibold text-gray-900 mb-1">Intégration widget</h3>
         <p class="text-xs text-gray-500 mb-3">Copiez ce code dans votre site. Remplacez <code class="bg-gray-100 px-1 rounded">VOTRE_EVENT_ID</code> par l'UUID de votre événement.</p>
         <div class="flex items-start gap-2">
@@ -163,6 +208,19 @@ onMounted(async () => {
           <button @click="copy(widgetSnippet, 'widget')"
             class="text-xs px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shrink-0 mt-0.5">
             {{ copied === 'widget' ? '✓ Copié' : 'Copier' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Embed editor snippet -->
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h3 class="font-semibold text-gray-900 mb-1">Intégration éditeur de plan</h3>
+        <p class="text-xs text-gray-500 mb-3">Remplacez <code class="bg-gray-100 px-1 rounded">VOTRE_SECRET</code> par le secret de votre clé embed et <code class="bg-gray-100 px-1 rounded">UUID_DU_PLAN</code> par l'identifiant du plan.</p>
+        <div class="flex items-start gap-2">
+          <pre class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono text-gray-700 overflow-x-auto whitespace-pre-wrap break-all">{{ embedSnippet }}</pre>
+          <button @click="copy(embedSnippet, 'embed-snippet')"
+            class="text-xs px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shrink-0 mt-0.5">
+            {{ copied === 'embed-snippet' ? '✓ Copié' : 'Copier' }}
           </button>
         </div>
       </div>
