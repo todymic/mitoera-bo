@@ -30,3 +30,19 @@ export async function switchWorkspace(id) {
   auth.setToken(data.token);
   await loadWorkspaces();
 }
+
+export async function createWorkspace(name) {
+  const res  = await apiFetch('/api/workspaces', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Erreur lors de la création');
+  }
+  const data = await res.json();
+  auth.setToken(data.token);
+  await loadWorkspaces();
+  return data;
+}

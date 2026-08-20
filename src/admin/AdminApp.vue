@@ -2,7 +2,7 @@
 import { computed, onMounted, watch, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { auth, apiMode, switchMode } from './services/auth.js';
-import { workspace, workspaces, loadWorkspaces, switchWorkspace } from './services/workspace.js';
+import { workspace, workspaces, loadWorkspaces, switchWorkspace, createWorkspace } from './services/workspace.js';
 
 // Auto-login via token JWT passé en URL (?token=...)
 // Le token doit être généré côté serveur via POST /api/auth/embed-token
@@ -32,12 +32,40 @@ onMounted(() => { if (auth.isLoggedIn()) loadWorkspaces(); });
 watch(isLoggedIn, (v) => { if (v) loadWorkspaces(); });
 
 // Workspace switcher dropdown
-const switcherOpen = ref(false);
+const switcherOpen   = ref(false);
+const creatingWs     = ref(false);
+const newWsName      = ref('');
+const newWsError     = ref('');
+const newWsLoading   = ref(false);
+
 async function doSwitch(id) {
   if (workspace.value?.id === id) { switcherOpen.value = false; return; }
   await switchWorkspace(id);
   switcherOpen.value = false;
   window.location.reload();
+}
+
+function openCreate() {
+  creatingWs.value = true;
+  newWsName.value  = '';
+  newWsError.value = '';
+}
+
+async function submitCreate() {
+  const name = newWsName.value.trim();
+  if (!name) { newWsError.value = 'Le nom est requis.'; return; }
+  newWsLoading.value = true;
+  newWsError.value   = '';
+  try {
+    await createWorkspace(name);
+    creatingWs.value   = false;
+    switcherOpen.value = false;
+    window.location.reload();
+  } catch (e) {
+    newWsError.value = e.message;
+  } finally {
+    newWsLoading.value = false;
+  }
 }
 
 const route = useRoute();
@@ -130,7 +158,7 @@ const navItems = [
           </button>
 
           <!-- Dropdown -->
-          <div v-if="switcherOpen" class="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1 overflow-hidden">
+          <div v-if="switcherOpen" class="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1 overflow-hidden">
             <button
               v-for="w in workspaces"
               :key="w.id"
@@ -142,10 +170,45 @@ const navItems = [
               <span class="flex-1 truncate">{{ w.name }}</span>
               <svg v-if="w.current" class="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
             </button>
+
+            <div class="border-t border-gray-100 mt-1 pt-1">
+              <!-- Formulaire inline création -->
+              <div v-if="creatingWs" class="px-3 py-2">
+                <input
+                  v-model="newWsName"
+                  @keyup.enter="submitCreate"
+                  @keyup.escape="creatingWs = false"
+                  placeholder="Nom du workspace"
+                  autofocus
+                  class="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <p v-if="newWsError" class="text-xs text-red-500 mt-1">{{ newWsError }}</p>
+                <div class="flex gap-1.5 mt-2">
+                  <button
+                    @click="submitCreate"
+                    :disabled="newWsLoading"
+                    class="flex-1 text-xs px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold disabled:opacity-50 transition"
+                  >{{ newWsLoading ? '…' : 'Créer' }}</button>
+                  <button
+                    @click="creatingWs = false"
+                    class="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition"
+                  >Annuler</button>
+                </div>
+              </div>
+              <!-- Bouton pour ouvrir le formulaire -->
+              <button
+                v-else
+                @click.stop="openCreate"
+                class="w-full flex items-center gap-2 px-3.5 py-2.5 text-sm text-gray-500 hover:bg-gray-50 hover:text-indigo-700 transition"
+              >
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                Nouveau workspace
+              </button>
+            </div>
           </div>
 
           <!-- Overlay to close dropdown -->
-          <div v-if="switcherOpen" class="fixed inset-0 z-40" @click="switcherOpen = false" />
+          <div v-if="switcherOpen" class="fixed inset-0 z-40" @click="switcherOpen = false; creatingWs = false" />
         </div>
 
         <span v-if="isSandbox" class="ml-1 px-2 py-0.5 text-xs font-bold rounded-full bg-amber-400 text-amber-900">SANDBOX</span>
