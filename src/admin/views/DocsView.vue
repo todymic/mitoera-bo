@@ -209,17 +209,44 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
         <div id="charts-get" class="endpoint">
           <div class="endpoint-header">
             <span class="method get">GET</span>
-            <code class="endpoint-path">/api/charts/<span class="path-param">{id}</span></code>
+            <code class="endpoint-path">/api/charts/<span class="path-param">{chartId}</span></code>
           </div>
           <p>Retourne un plan par son UUID.</p>
+          <table class="params-table">
+            <thead><tr><th>Paramètre URL</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>chartId</code></td><td>uuid (string)</td><td>UUID du plan</td></tr>
+            </tbody>
+          </table>
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl https://api.mitoera.com/api/charts/<span class="c-val">01926a3f-1234-7abc-8def-000000000001</span> \
+  -u <span class="c-str">pk_abc123:sk_xyz789</span></code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">Réponse 200</div>
+            <pre><code>{
+  <span class="c-str">"id"</span>: <span class="c-val">"01926a3f-1234-7abc-8def-000000000001"</span>,
+  <span class="c-str">"name"</span>: <span class="c-val">"Salle Olympia"</span>,
+  <span class="c-str">"slug"</span>: <span class="c-val">"salle-olympia"</span>,
+  <span class="c-str">"status"</span>: <span class="c-val">"published"</span>,
+  <span class="c-str">"createdAt"</span>: <span class="c-val">"2025-01-15T10:00:00Z"</span>
+}</code></pre>
+          </div>
         </div>
 
         <div id="charts-update" class="endpoint">
           <div class="endpoint-header">
             <span class="method put">PUT</span>
-            <code class="endpoint-path">/api/charts/<span class="path-param">{id}</span></code>
+            <code class="endpoint-path">/api/charts/<span class="path-param">{chartId}</span></code>
           </div>
           <p>Met à jour le nom ou les données SVG d'un plan.</p>
+          <table class="params-table">
+            <thead><tr><th>Paramètre URL</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>chartId</code></td><td>uuid (string)</td><td>UUID du plan à modifier</td></tr>
+            </tbody>
+          </table>
           <table class="params-table">
             <thead><tr><th>Champ</th><th>Type</th><th>Requis</th><th>Description</th></tr></thead>
             <tbody>
@@ -227,22 +254,51 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
               <tr><td><code>objects</code></td><td>array</td><td>non</td><td>Données des objets du plan</td></tr>
             </tbody>
           </table>
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -X PUT https://api.mitoera.com/api/charts/<span class="c-val">01926a3f-1234-7abc-8def-000000000001</span> \
+  -u <span class="c-str">pk_abc123:sk_xyz789</span> \
+  -H <span class="c-str">'Content-Type: application/json'</span> \
+  -d <span class="c-str">'{"name":"Grande Salle"}'</span></code></pre>
+          </div>
         </div>
 
         <div id="charts-publish" class="endpoint">
           <div class="endpoint-header">
             <span class="method post">POST</span>
-            <code class="endpoint-path">/api/charts/<span class="path-param">{id}</span>/publish</code>
+            <code class="endpoint-path">/api/charts/<span class="path-param">{chartId}</span>/publish</code>
           </div>
           <p>Publie un plan. Un plan publié peut être associé à des événements et utilisé par le widget. Les modifications ultérieures passent par un état "en attente" avant republication.</p>
+          <table class="params-table">
+            <thead><tr><th>Paramètre URL</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>chartId</code></td><td>uuid (string)</td><td>UUID du plan à publier</td></tr>
+            </tbody>
+          </table>
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -X POST https://api.mitoera.com/api/charts/<span class="c-val">01926a3f-1234-7abc-8def-000000000001</span>/publish \
+  -u <span class="c-str">pk_abc123:sk_xyz789</span></code></pre>
+          </div>
         </div>
 
         <div id="charts-delete" class="endpoint">
           <div class="endpoint-header">
             <span class="method delete">DELETE</span>
-            <code class="endpoint-path">/api/charts/<span class="path-param">{id}</span></code>
+            <code class="endpoint-path">/api/charts/<span class="path-param">{chartId}</span></code>
           </div>
           <p>Supprime un plan. Impossible si le plan est lié à des événements actifs.</p>
+          <table class="params-table">
+            <thead><tr><th>Paramètre URL</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>chartId</code></td><td>uuid (string)</td><td>UUID du plan à supprimer</td></tr>
+            </tbody>
+          </table>
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -X DELETE https://api.mitoera.com/api/charts/<span class="c-val">01926a3f-1234-7abc-8def-000000000001</span> \
+  -u <span class="c-str">pk_abc123:sk_xyz789</span></code></pre>
+          </div>
         </div>
       </section>
 
@@ -282,26 +338,65 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
             <tbody>
               <tr><td><code>name</code></td><td>string</td><td><span class="req">oui</span></td><td>Nom de l'événement</td></tr>
               <tr><td><code>date</code></td><td>string (ISO 8601)</td><td>non</td><td>Date de l'événement</td></tr>
-              <tr><td><code>chartId</code></td><td>uuid</td><td>non</td><td>Plan à associer</td></tr>
+              <tr><td><code>chartId</code></td><td>uuid (string)</td><td>non</td><td>UUID du plan à associer</td></tr>
               <tr><td><code>holdDuration</code></td><td>integer</td><td>non</td><td>Durée de blocage en minutes (défaut: 15)</td></tr>
             </tbody>
           </table>
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -X POST https://api.mitoera.com/api/events \
+  -u <span class="c-str">pk_abc123:sk_xyz789</span> \
+  -H <span class="c-str">'Content-Type: application/json'</span> \
+  -d <span class="c-str">'{"name":"Concert 12 mars","date":"2025-03-12T20:00:00Z","chartId":"01926a3f-1234-7abc-8def-000000000001","holdDuration":15}'</span></code></pre>
+          </div>
         </div>
 
         <div id="events-get" class="endpoint">
           <div class="endpoint-header">
             <span class="method get">GET</span>
-            <code class="endpoint-path">/api/events/<span class="path-param">{id}</span></code>
+            <code class="endpoint-path">/api/events/<span class="path-param">{eventId}</span></code>
           </div>
           <p>Retourne un événement par UUID. Utilisez <code>/api/events/lookup/<span class="path-param">{identifier}</span></code> pour chercher par identifiant textuel.</p>
+          <table class="params-table">
+            <thead><tr><th>Paramètre URL</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>eventId</code></td><td>uuid (string)</td><td>UUID de l'événement</td></tr>
+            </tbody>
+          </table>
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl https://api.mitoera.com/api/events/<span class="c-val">01926b1c-5678-7abc-8def-000000000002</span> \
+  -u <span class="c-str">pk_abc123:sk_xyz789</span></code></pre>
+          </div>
         </div>
 
         <div id="events-update" class="endpoint">
           <div class="endpoint-header">
             <span class="method put">PUT</span>
-            <code class="endpoint-path">/api/events/<span class="path-param">{id}</span></code>
+            <code class="endpoint-path">/api/events/<span class="path-param">{eventId}</span></code>
           </div>
           <p>Met à jour le nom, la date ou la durée de blocage d'un événement.</p>
+          <table class="params-table">
+            <thead><tr><th>Paramètre URL</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>eventId</code></td><td>uuid (string)</td><td>UUID de l'événement à modifier</td></tr>
+            </tbody>
+          </table>
+          <table class="params-table">
+            <thead><tr><th>Champ</th><th>Type</th><th>Requis</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>name</code></td><td>string</td><td>non</td><td>Nouveau nom</td></tr>
+              <tr><td><code>date</code></td><td>string (ISO 8601)</td><td>non</td><td>Nouvelle date</td></tr>
+              <tr><td><code>holdDuration</code></td><td>integer</td><td>non</td><td>Nouvelle durée de blocage en minutes</td></tr>
+            </tbody>
+          </table>
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -X PUT https://api.mitoera.com/api/events/<span class="c-val">01926b1c-5678-7abc-8def-000000000002</span> \
+  -u <span class="c-str">pk_abc123:sk_xyz789</span> \
+  -H <span class="c-str">'Content-Type: application/json'</span> \
+  -d <span class="c-str">'{"name":"Concert 15 mars","holdDuration":20}'</span></code></pre>
+          </div>
         </div>
 
         <div id="events-link-chart" class="endpoint">
@@ -310,14 +405,32 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
             <code class="endpoint-path">/api/events/<span class="path-param">{eventId}</span>/link-chart/<span class="path-param">{chartId}</span></code>
           </div>
           <p>Associe un plan publié à un événement. Un événement ne peut avoir qu'un seul plan à la fois.</p>
+          <table class="params-table">
+            <thead><tr><th>Paramètre URL</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>eventId</code></td><td>uuid (string)</td><td>UUID de l'événement</td></tr>
+              <tr><td><code>chartId</code></td><td>uuid (string)</td><td>UUID du plan publié à associer</td></tr>
+            </tbody>
+          </table>
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -X POST https://api.mitoera.com/api/events/<span class="c-val">01926b1c-5678-7abc-8def-000000000002</span>/link-chart/<span class="c-val">01926a3f-1234-7abc-8def-000000000001</span> \
+  -u <span class="c-str">pk_abc123:sk_xyz789</span></code></pre>
+          </div>
         </div>
 
         <div id="events-seats" class="endpoint">
           <div class="endpoint-header">
             <span class="method get">GET</span>
-            <code class="endpoint-path">/api/events/<span class="path-param">{id}</span>/seats</code>
+            <code class="endpoint-path">/api/events/<span class="path-param">{eventId}</span>/seats</code>
           </div>
           <p>Retourne l'état de tous les sièges d'un événement.</p>
+          <table class="params-table">
+            <thead><tr><th>Paramètre URL</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>eventId</code></td><td>uuid (string)</td><td>UUID de l'événement</td></tr>
+            </tbody>
+          </table>
           <div class="code-block">
             <div class="code-label">Réponse 200</div>
             <pre><code>[
@@ -349,7 +462,18 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
         <div id="events-delete" class="endpoint">
           <div class="endpoint-header">
             <span class="method delete">DELETE</span>
-            <code class="endpoint-path">/api/events/<span class="path-param">{id}</span></code>
+            <code class="endpoint-path">/api/events/<span class="path-param">{eventId}</span></code>
+          </div>
+          <table class="params-table">
+            <thead><tr><th>Paramètre URL</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>eventId</code></td><td>uuid (string)</td><td>UUID de l'événement à supprimer</td></tr>
+            </tbody>
+          </table>
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -X DELETE https://api.mitoera.com/api/events/<span class="c-val">01926b1c-5678-7abc-8def-000000000002</span> \
+  -u <span class="c-str">pk_abc123:sk_xyz789</span></code></pre>
           </div>
         </div>
       </section>
@@ -459,23 +583,62 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
             <thead><tr><th>Champ</th><th>Type</th><th>Requis</th><th>Description</th></tr></thead>
             <tbody>
               <tr><td><code>name</code></td><td>string</td><td><span class="req">oui</span></td><td>Nom de la catégorie</td></tr>
-              <tr><td><code>color</code></td><td>string (hex)</td><td>non</td><td>Couleur d'affichage</td></tr>
+              <tr><td><code>color</code></td><td>string (hex)</td><td>non</td><td>Couleur d'affichage, ex : <code>#E8602A</code></td></tr>
               <tr><td><code>pricing</code></td><td>number</td><td>non</td><td>Tarif de base</td></tr>
             </tbody>
           </table>
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -X POST https://api.mitoera.com/api/categories \
+  -u <span class="c-str">pk_abc123:sk_xyz789</span> \
+  -H <span class="c-str">'Content-Type: application/json'</span> \
+  -d <span class="c-str">'{"name":"Carré Or","color":"#E8602A","pricing":85.00}'</span></code></pre>
+          </div>
         </div>
 
         <div id="categories-update" class="endpoint">
           <div class="endpoint-header">
             <span class="method put">PUT</span>
-            <code class="endpoint-path">/api/categories/<span class="path-param">{id}</span></code>
+            <code class="endpoint-path">/api/categories/<span class="path-param">{categoryId}</span></code>
+          </div>
+          <table class="params-table">
+            <thead><tr><th>Paramètre URL</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>categoryId</code></td><td>uuid (string)</td><td>UUID de la catégorie à modifier</td></tr>
+            </tbody>
+          </table>
+          <table class="params-table">
+            <thead><tr><th>Champ</th><th>Type</th><th>Requis</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>name</code></td><td>string</td><td>non</td><td>Nouveau nom</td></tr>
+              <tr><td><code>color</code></td><td>string (hex)</td><td>non</td><td>Nouvelle couleur</td></tr>
+              <tr><td><code>pricing</code></td><td>number</td><td>non</td><td>Nouveau tarif de base</td></tr>
+            </tbody>
+          </table>
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -X PUT https://api.mitoera.com/api/categories/<span class="c-val">01926c4d-9012-7abc-8def-000000000003</span> \
+  -u <span class="c-str">pk_abc123:sk_xyz789</span> \
+  -H <span class="c-str">'Content-Type: application/json'</span> \
+  -d <span class="c-str">'{"pricing":90.00}'</span></code></pre>
           </div>
         </div>
 
         <div id="categories-delete" class="endpoint">
           <div class="endpoint-header">
             <span class="method delete">DELETE</span>
-            <code class="endpoint-path">/api/categories/<span class="path-param">{id}</span></code>
+            <code class="endpoint-path">/api/categories/<span class="path-param">{categoryId}</span></code>
+          </div>
+          <table class="params-table">
+            <thead><tr><th>Paramètre URL</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>categoryId</code></td><td>uuid (string)</td><td>UUID de la catégorie à supprimer</td></tr>
+            </tbody>
+          </table>
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -X DELETE https://api.mitoera.com/api/categories/<span class="c-val">01926c4d-9012-7abc-8def-000000000003</span> \
+  -u <span class="c-str">pk_abc123:sk_xyz789</span></code></pre>
           </div>
         </div>
       </section>
