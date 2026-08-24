@@ -110,32 +110,45 @@ onMounted(async () => {
       <!-- Clé secrète -->
       <div class="mb-6">
         <h3 class="font-semibold text-gray-900 mb-2">Clé secrète (back-office)</h3>
-        <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <code class="flex-1 text-sm font-mono text-gray-700 truncate">{{ secretKey?.keyId ?? '…' }}</code>
-          <button @click="copy(secretKey?.keyId, 'sk')" title="Copier"
-            class="text-gray-400 hover:text-gray-700 shrink-0 p-1 rounded hover:bg-gray-100">
-            <svg v-if="copied !== 'sk'" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-            </svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-            </svg>
-          </button>
-          <button @click="rotate('backoffice')" :disabled="rotating === 'backoffice' || revoking === 'backoffice'" title="Régénérer"
-            class="text-gray-400 hover:text-gray-700 shrink-0 p-1 rounded hover:bg-gray-100 disabled:opacity-40"
-            :class="{ 'animate-spin': rotating === 'backoffice' }">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-            </svg>
-          </button>
-          <button @click="revoke('backoffice')" :disabled="rotating === 'backoffice' || revoking === 'backoffice'" title="Révoquer"
-            class="text-red-400 hover:text-red-600 shrink-0 p-1 rounded hover:bg-red-50 disabled:opacity-40">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
-            </svg>
-          </button>
+
+        <!-- keyId — toujours visible -->
+        <div class="mb-2">
+          <p class="text-xs text-gray-500 mb-1">Identifiant public <span class="text-gray-400">(keyId — toujours disponible)</span></p>
+          <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-3">
+            <code class="flex-1 text-sm font-mono text-gray-700 break-all">{{ secretKey?.keyId ?? '…' }}</code>
+            <button @click="copy(secretKey?.keyId, 'sk-id')" title="Copier le keyId"
+              class="text-gray-400 hover:text-gray-700 shrink-0 p-1 rounded hover:bg-gray-100">
+              <svg v-if="copied !== 'sk-id'" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+            </button>
+          </div>
         </div>
-        <p class="text-xs text-gray-400 mt-1">Ne pas exposer publiquement — utilisée pour l'éditeur de plan (SDK).</p>
+
+        <!-- secret — affiché une seule fois + actions -->
+        <div>
+          <p class="text-xs text-gray-500 mb-1">Secret <span class="text-gray-400">(affiché une seule fois à la génération)</span></p>
+          <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-3">
+            <code class="flex-1 text-sm font-mono text-gray-400">••••••••••••••••••••••••</code>
+            <button @click="rotate('backoffice')" :disabled="rotating === 'backoffice' || revoking === 'backoffice'" title="Régénérer"
+              class="text-gray-400 hover:text-gray-700 shrink-0 p-1 rounded hover:bg-gray-100 disabled:opacity-40"
+              :class="{ 'animate-spin': rotating === 'backoffice' }">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+            </button>
+            <button @click="revoke('backoffice')" :disabled="rotating === 'backoffice' || revoking === 'backoffice'" title="Révoquer"
+              class="text-red-400 hover:text-red-600 shrink-0 p-1 rounded hover:bg-red-50 disabled:opacity-40">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <p class="text-xs text-gray-400 mt-1">SDK éditeur : <code class="bg-gray-100 px-1 rounded">secretKey: "{{ secretKey?.keyId ?? 'keyId' }}:VOTRE_SECRET"</code></p>
       </div>
 
       <!-- Clé publique -->
