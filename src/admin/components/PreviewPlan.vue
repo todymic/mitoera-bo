@@ -424,7 +424,7 @@ watch(
                     }"
                     @mouseenter="seat.status !== 'deleted' && onSeatHover($event, row, seat)"
                     @mouseleave="onSeatLeave"
-                  >{{ (row.seatSize || 22) >= 14 && seat.status !== 'deleted' ? seat.label : '' }}</div>
+                  ></div>
                 </div>
               </div>
             </div>
