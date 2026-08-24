@@ -113,7 +113,7 @@ onMounted(async () => {
 
         <!-- keyId — toujours visible -->
         <div class="mb-2">
-          <p class="text-xs text-gray-500 mb-1">Identifiant public <span class="text-gray-400">(keyId — toujours disponible)</span></p>
+          <p class="text-xs text-gray-500 mb-1">Identifiant public</p>
           <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-3">
             <code class="flex-1 text-sm font-mono text-gray-700 break-all">{{ secretKey?.keyId ?? '…' }}</code>
             <button @click="copy(secretKey?.keyId, 'sk-id')" title="Copier le keyId"
@@ -130,7 +130,7 @@ onMounted(async () => {
 
         <!-- secret — affiché une seule fois + actions -->
         <div>
-          <p class="text-xs text-gray-500 mb-1">Secret <span class="text-gray-400">(affiché une seule fois à la génération)</span></p>
+          <p class="text-xs text-gray-500 mb-1">Secret</p>
           <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-3">
             <code class="flex-1 text-sm font-mono text-gray-400">••••••••••••••••••••••••</code>
             <button @click="rotate('backoffice')" :disabled="rotating === 'backoffice' || revoking === 'backoffice'" title="Régénérer"
