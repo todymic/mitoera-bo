@@ -165,21 +165,6 @@ function zoomIn()    { setZoom(zoom.value + ZOOM_STEP); }
 function zoomOut()   { setZoom(zoom.value - ZOOM_STEP); }
 function zoomReset() { fitToView(); }
 
-function onWheel(ev) {
-  ev.preventDefault();
-  const el = viewportEl.value;
-  if (!el) return;
-  const prev = zoom.value;
-  const factor = ev.deltaY < 0 ? 1.12 : 0.9;
-  const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, prev * factor));
-  const rect = el.getBoundingClientRect();
-  const mx = ev.clientX - rect.left;
-  const my = ev.clientY - rect.top;
-  panX.value = mx - (mx - panX.value) * (next / prev);
-  panY.value = my - (my - panY.value) * (next / prev);
-  zoom.value = next;
-  updateViewport();
-}
 
 function startPan(ev) {
   if (ev.button !== 0) return;
@@ -307,7 +292,6 @@ watch(
         class="overflow-hidden flex-1 min-w-0 rounded-xl relative bg-gray-400"
         :class="panning.active ? 'cursor-grabbing' : 'cursor-grab'"
         style="touch-action: none;"
-        @wheel.prevent="onWheel"
         @pointerdown="startPan"
       >
         <!-- Zoom overlay — bas droite -->
