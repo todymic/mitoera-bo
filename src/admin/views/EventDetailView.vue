@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { adminApi } from '../services/adminApi.js';
+import { apiMode } from '../services/auth.js';
 
 import { computeAxisLabel } from '../../services/seatLabel.js';
 import EventPlanView from '../components/EventPlanView.vue';
@@ -32,7 +33,8 @@ const TABS = [
 const widgetUrl = computed(() => {
   if (!publicKey.value || !eventDetail.value?.id) return null;
   const base = window.location.origin.replace(':3000', ':8000');
-  return `${base}/render.html?key=${publicKey.value}&event=${eventDetail.value.id}`;
+  const renderPath = apiMode.value === 'sandbox' ? '/sandbox-render' : '/render';
+  return `${base}${renderPath}?key=${publicKey.value}&event=${eventDetail.value.id}`;
 });
 
 async function load() {
