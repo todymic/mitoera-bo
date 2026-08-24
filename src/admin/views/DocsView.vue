@@ -674,7 +674,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
           <tbody>
             <tr><td><code>divId</code></td><td>string</td><td>ID de l'élément HTML conteneur</td></tr>
             <tr><td><code>workspaceKey</code></td><td>string</td><td>Clé publique (<code>pk_pub_…</code>)</td></tr>
-            <tr><td><code>event</code></td><td>string</td><td>UUID de l'événement à afficher</td></tr>
+            <tr><td><code>event</code></td><td>string (uuid)</td><td>UUID de l'événement à afficher</td></tr>
             <tr><td><code>onSeatSelected</code></td><td>function</td><td>Callback — siège sélectionné</td></tr>
             <tr><td><code>onSeatDeselected</code></td><td>function</td><td>Callback — siège désélectionné</td></tr>
             <tr><td><code>onCheckout</code></td><td>function</td><td>Callback — validation du panier</td></tr>
@@ -682,9 +682,9 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
         </table>
 
         <h3>Éditeur de plan embarqué</h3>
-        <p>Pour embarquer l'éditeur de plan dans votre back-office, utilisez votre <strong>clé secrète</strong>.</p>
+        <p>Pour embarquer l'éditeur de plan dans votre back-office, utilisez votre <strong>clé secrète</strong>. En sandbox, passez <code>sandbox: true</code> pour que le SDK utilise l'environnement de test.</p>
         <div class="code-block">
-          <div class="code-label">HTML</div>
+          <div class="code-label">HTML — Production</div>
           <pre><code><span class="c-tag">&lt;div</span> <span class="c-attr">id</span>=<span class="c-str">"chartDesigner"</span> <span class="c-attr">style</span>=<span class="c-str">"height:600px"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
 <span class="c-tag">&lt;script</span> <span class="c-attr">src</span>=<span class="c-str">"https://bo.mitoera.com/mitoera-editor.js"</span><span class="c-tag">&gt;&lt;/script&gt;</span>
 <span class="c-tag">&lt;script&gt;</span>
@@ -695,6 +695,29 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
   }).<span class="c-fn">render</span>();
 <span class="c-tag">&lt;/script&gt;</span></code></pre>
         </div>
+        <div class="code-block">
+          <div class="code-label">HTML — Sandbox</div>
+          <pre><code><span class="c-tag">&lt;div</span> <span class="c-attr">id</span>=<span class="c-str">"chartDesigner"</span> <span class="c-attr">style</span>=<span class="c-str">"height:600px"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
+<span class="c-tag">&lt;script</span> <span class="c-attr">src</span>=<span class="c-str">"https://bo.mitoera.com/mitoera-editor.js"</span><span class="c-tag">&gt;&lt;/script&gt;</span>
+<span class="c-tag">&lt;script&gt;</span>
+  <span class="c-key">new</span> mitoera.<span class="c-fn">ChartDesigner</span>({
+    <span class="c-str">divId</span>: <span class="c-val">'chartDesigner'</span>,
+    <span class="c-str">secretKey</span>: <span class="c-val">'pk_xxxxxxxx:sk_xxxxxxxx'</span>,
+    <span class="c-str">chartKey</span>: <span class="c-val">'UUID_DU_PLAN'</span>,
+    <span class="c-str">sandbox</span>: <span class="c-key">true</span>,  <span class="c-comment">// utilise https://api.mitoera.com/sandbox-api</span>
+  }).<span class="c-fn">render</span>();
+<span class="c-tag">&lt;/script&gt;</span></code></pre>
+        </div>
+        <table class="params-table" style="margin-top:12px">
+          <thead><tr><th>Option</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>divId</code></td><td>string</td><td>ID de l'élément HTML conteneur</td></tr>
+            <tr><td><code>secretKey</code></td><td>string</td><td>Clé secrète au format <code>keyId:secret</code></td></tr>
+            <tr><td><code>chartKey</code></td><td>string (uuid)</td><td>UUID du plan à éditer</td></tr>
+            <tr><td><code>eventKey</code></td><td>string (uuid)</td><td>UUID de l'événement lié (optionnel)</td></tr>
+            <tr><td><code>sandbox</code></td><td>boolean</td><td>Utiliser l'environnement sandbox (défaut: <code>false</code>)</td></tr>
+          </tbody>
+        </table>
       </section>
 
       <!-- Errors -->
