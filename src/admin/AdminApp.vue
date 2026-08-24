@@ -70,6 +70,7 @@ async function submitCreate() {
 
 const route = useRoute();
 const isEmbed = computed(() => route.query.embed === 'true');
+const isFullscreen = computed(() => route.name === 'docs');
 
 const navItems = [
   {
@@ -130,8 +131,13 @@ const navItems = [
 </script>
 
 <template>
+  <!-- Docs : rendu sans chrome BO -->
+  <div v-if="isFullscreen">
+    <RouterView />
+  </div>
+
   <!-- Mode embed : contenu seul, sans chrome -->
-  <div v-if="isEmbed" class="h-screen flex flex-col overflow-hidden">
+  <div v-else-if="isEmbed" class="h-screen flex flex-col overflow-hidden">
     <RouterView />
   </div>
 

@@ -15,10 +15,12 @@ const SettingsView   = () => import('./views/SettingsView.vue');
 const TeamView       = () => import('./views/TeamView.vue');
 const LoginView           = () => import('./components/LoginView.vue');
 const AcceptInvitationView = () => import('./views/AcceptInvitationView.vue');
+const DocsView            = () => import('./views/DocsView.vue');
 
 const routes = [
   { path: '/login',              name: 'login',             component: LoginView,           meta: { public: true } },
   { path: '/accept-invitation', name: 'accept-invitation', component: AcceptInvitationView, meta: { public: true } },
+  { path: '/docs',              name: 'docs',              component: DocsView,             meta: { public: true } },
   { path: '/',              name: 'home',         component: HomeView },
   { path: '/plans',         name: 'plans',        component: PlansView },
   { path: '/plans/:id',     name: 'plan-editor',  component: EditorView },
