@@ -415,7 +415,7 @@ watch(
                       height: (row.seatSize || 22) + 'px',
                       minWidth: row.shape === 'rounded' ? ((row.seatSize || 22) * 1.5) + 'px' : (row.seatSize || 22) + 'px',
                       padding: row.shape === 'rounded' ? '0 6px' : '0',
-                      fontSize: Math.max(8, Math.floor((row.seatSize || 22) * 0.4)) + 'px',
+                      fontSize: Math.max(6, Math.floor((row.seatSize || 22) * (seat.label && seat.label.length > 2 ? 0.28 : 0.4))) + 'px',
                       borderRadius: row.shape === 'round' ? '50%' : row.shape === 'rounded' ? '10px' : '4px',
                       visibility: seat.status === 'deleted' ? 'hidden' : 'visible',
                       color: seat.status === 'disabled' ? '#9ca3af' : '#fff',
@@ -424,7 +424,7 @@ watch(
                     }"
                     @mouseenter="seat.status !== 'deleted' && onSeatHover($event, row, seat)"
                     @mouseleave="onSeatLeave"
-                  >{{ (row.seatSize || 22) >= (seat.label && seat.label.length > 2 ? 22 : 14) && seat.status !== 'deleted' ? seat.label : '' }}</div>
+                  >{{ (row.seatSize || 22) >= 14 && seat.status !== 'deleted' ? seat.label : '' }}</div>
                 </div>
               </div>
             </div>
