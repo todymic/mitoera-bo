@@ -18,7 +18,7 @@ const widgetSnippet = computed(() => {
   return `<div id="mitoera-chart"></div>
 <script src="${BASE_URL}/mitoera-widget.js"><\/script>
 <script>
-  new Placio.SeatingChart({
+  new Mitoera.SeatingChart({
     divId: 'mitoera-chart',
     workspaceKey: '${key}',
     event: 'VOTRE_EVENT_ID',

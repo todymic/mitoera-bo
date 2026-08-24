@@ -654,7 +654,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
           <pre><code><span class="c-tag">&lt;div</span> <span class="c-attr">id</span>=<span class="c-str">"mitoera-chart"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
 <span class="c-tag">&lt;script</span> <span class="c-attr">src</span>=<span class="c-str">"https://bo.mitoera.com/mitoera-widget.js"</span><span class="c-tag">&gt;&lt;/script&gt;</span>
 <span class="c-tag">&lt;script&gt;</span>
-  <span class="c-key">new</span> Placio.<span class="c-fn">SeatingChart</span>({
+  <span class="c-key">new</span> Mitoera.<span class="c-fn">SeatingChart</span>({
     <span class="c-str">divId</span>: <span class="c-val">'mitoera-chart'</span>,
     <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_pub_xxxxxxxx'</span>,
     <span class="c-str">event</span>: <span class="c-val">'UUID_DE_L_EVENEMENT'</span>,
