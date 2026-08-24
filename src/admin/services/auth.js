@@ -68,6 +68,7 @@ export function getApiBase() {
 }
 
 export function switchMode(mode) {
+  if (apiMode.value === mode) return;
   localStorage.setItem(MODE_KEY, mode);
   apiMode.value = mode;
   window.location.reload();
