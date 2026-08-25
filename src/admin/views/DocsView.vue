@@ -650,13 +650,13 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
 
         <h3>Intégration</h3>
         <div class="code-block">
-          <div class="code-label">HTML</div>
+          <div class="code-label">HTML — Production</div>
           <pre><code><span class="c-tag">&lt;div</span> <span class="c-attr">id</span>=<span class="c-str">"mitoera-chart"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
 <span class="c-tag">&lt;script</span> <span class="c-attr">src</span>=<span class="c-str">"https://bo.mitoera.com/mitoera-widget.js"</span><span class="c-tag">&gt;&lt;/script&gt;</span>
 <span class="c-tag">&lt;script&gt;</span>
   <span class="c-key">new</span> Mitoera.<span class="c-fn">SeatingChart</span>({
     <span class="c-str">divId</span>: <span class="c-val">'mitoera-chart'</span>,
-    <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_pub_xxxxxxxx'</span>,
+    <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_pub_xxxxxxxx'</span>,  <span class="c-comment">// clé publique (prod)</span>
     <span class="c-str">event</span>: <span class="c-val">'UUID_DE_L_EVENEMENT'</span>,
     <span class="c-str">onSeatSelected</span>:   (seat) =&gt; console.<span class="c-fn">log</span>(<span class="c-val">'sélectionné'</span>, seat),
     <span class="c-str">onSeatDeselected</span>: (seat) =&gt; console.<span class="c-fn">log</span>(<span class="c-val">'désélectionné'</span>, seat),
@@ -664,6 +664,21 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
       <span class="c-comment">// Appelez votre serveur pour confirmer la réservation</span>
       myServer.<span class="c-fn">book</span>(seats);
     },
+  }).<span class="c-fn">render</span>();
+<span class="c-tag">&lt;/script&gt;</span></code></pre>
+        </div>
+        <div class="code-block">
+          <div class="code-label">HTML — Sandbox</div>
+          <pre><code><span class="c-tag">&lt;div</span> <span class="c-attr">id</span>=<span class="c-str">"mitoera-chart"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
+<span class="c-tag">&lt;script</span> <span class="c-attr">src</span>=<span class="c-str">"https://bo.mitoera.com/mitoera-widget.js"</span><span class="c-tag">&gt;&lt;/script&gt;</span>
+<span class="c-tag">&lt;script&gt;</span>
+  <span class="c-key">new</span> Mitoera.<span class="c-fn">SeatingChart</span>({
+    <span class="c-str">divId</span>: <span class="c-val">'mitoera-chart'</span>,
+    <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_pub_xxxxxxxx'</span>,  <span class="c-comment">// clé publique sandbox</span>
+    <span class="c-str">event</span>: <span class="c-val">'UUID_DE_L_EVENEMENT'</span>,
+    <span class="c-str">sandbox</span>: <span class="c-key">true</span>,  <span class="c-comment">// utilise /sandbox-render au lieu de /render</span>
+    <span class="c-str">onSeatSelected</span>:   (seat) =&gt; console.<span class="c-fn">log</span>(<span class="c-val">'sélectionné'</span>, seat),
+    <span class="c-str">onSeatDeselected</span>: (seat) =&gt; console.<span class="c-fn">log</span>(<span class="c-val">'désélectionné'</span>, seat),
   }).<span class="c-fn">render</span>();
 <span class="c-tag">&lt;/script&gt;</span></code></pre>
         </div>
@@ -675,6 +690,8 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
             <tr><td><code>divId</code></td><td>string</td><td>ID de l'élément HTML conteneur</td></tr>
             <tr><td><code>workspaceKey</code></td><td>string</td><td>Clé publique (<code>pk_pub_…</code>)</td></tr>
             <tr><td><code>event</code></td><td>string (uuid)</td><td>UUID de l'événement à afficher</td></tr>
+            <tr><td><code>sandbox</code></td><td>boolean</td><td>Active l'env. sandbox — utilise <code>/sandbox-render</code> au lieu de <code>/render</code> (défaut : <code>false</code>)</td></tr>
+            <tr><td><code>showLegend</code></td><td>boolean</td><td>Afficher la légende des catégories (défaut : <code>true</code>)</td></tr>
             <tr><td><code>onSeatSelected</code></td><td>function</td><td>Callback — siège sélectionné</td></tr>
             <tr><td><code>onSeatDeselected</code></td><td>function</td><td>Callback — siège désélectionné</td></tr>
             <tr><td><code>onCheckout</code></td><td>function</td><td>Callback — validation du panier</td></tr>
