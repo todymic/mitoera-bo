@@ -692,6 +692,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
             <tr><td><code>event</code></td><td>string (uuid)</td><td>UUID de l'événement à afficher</td></tr>
             <tr><td><code>sandbox</code></td><td>boolean</td><td>Active l'env. sandbox — utilise <code>/sandbox-render</code> au lieu de <code>/render</code> (défaut : <code>false</code>)</td></tr>
             <tr><td><code>showLegend</code></td><td>boolean</td><td>Afficher la légende des catégories (défaut : <code>true</code>)</td></tr>
+            <tr><td><code>showResume</code></td><td>boolean</td><td>Afficher le résumé des sièges sélectionnés en footer du plan — format <code>● CATÉGORIE — N sièges</code> (défaut : <code>false</code>)</td></tr>
             <tr><td><code>onSeatSelected</code></td><td>function</td><td>Callback — siège sélectionné</td></tr>
             <tr><td><code>onSeatDeselected</code></td><td>function</td><td>Callback — siège désélectionné</td></tr>
             <tr><td><code>onSelectionChange</code></td><td>function</td><td>Callback — appelé à chaque changement, reçoit le tableau complet des sièges sélectionnés</td></tr>
