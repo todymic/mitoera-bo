@@ -694,9 +694,50 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
             <tr><td><code>showLegend</code></td><td>boolean</td><td>Afficher la légende des catégories (défaut : <code>true</code>)</td></tr>
             <tr><td><code>onSeatSelected</code></td><td>function</td><td>Callback — siège sélectionné</td></tr>
             <tr><td><code>onSeatDeselected</code></td><td>function</td><td>Callback — siège désélectionné</td></tr>
+            <tr><td><code>onSelectionChange</code></td><td>function</td><td>Callback — appelé à chaque changement, reçoit le tableau complet des sièges sélectionnés</td></tr>
             <tr><td><code>onCheckout</code></td><td>function</td><td>Callback — validation du panier</td></tr>
+            <tr><td><code>onReady</code></td><td>function</td><td>Callback — widget prêt, reçoit <code>{ sessionToken, holdToken, eventId }</code></td></tr>
           </tbody>
         </table>
+
+        <h3>Méthodes publiques</h3>
+        <table class="params-table">
+          <thead><tr><th>Méthode</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>render()</code></td><td>Crée l'iframe et charge le plan. À appeler une seule fois.</td></tr>
+            <tr><td><code>selectSeats(seatKeys[])</code></td><td>Sélectionne programmatiquement des sièges disponibles (utile pour restaurer une sélection après redirection).</td></tr>
+            <tr><td><code>getSelectedSeats()</code></td><td>Retourne le tableau des sièges actuellement sélectionnés : <code>[{ seatKey, catId, catColor, catName }]</code></td></tr>
+            <tr><td><code>getSessionToken()</code></td><td>Retourne le JWT de session widget (pour appeler <code>/api/widget/**</code> depuis votre back-end).</td></tr>
+            <tr><td><code>getHoldToken()</code></td><td>Retourne le hold token de session.</td></tr>
+            <tr><td><code>getEventId()</code></td><td>Retourne l'UUID de l'événement résolu.</td></tr>
+            <tr><td><code>destroy()</code></td><td>Supprime l'iframe et nettoie les écouteurs. À appeler lors de la navigation SPA.</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Restaurer la sélection après redirection (ex : page login)</h3>
+        <p>Les sièges sélectionnés vivent en mémoire dans le widget. Pour les conserver après une redirection (authentification, paiement…), sauvegardez-les en <code>localStorage</code> avant de quitter la page et restaurez-les dans le callback <code>onReady</code> au retour.</p>
+        <div class="code-block">
+          <div class="code-label">JavaScript — pattern sauvegarde / restauration</div>
+          <pre><code><span class="c-comment">// ① Avant de rediriger vers la page de login</span>
+<span class="c-key">const</span> keys = chart.<span class="c-fn">getSelectedSeats</span>().<span class="c-fn">map</span>(s => s.seatKey);
+localStorage.<span class="c-fn">setItem</span>(<span class="c-val">'mitoera_seats'</span>, JSON.<span class="c-fn">stringify</span>(keys));
+window.location.href = <span class="c-val">'/login?next=/evenement/xxx'</span>;
+
+<span class="c-comment">// ② Au retour sur la page du plan — restaurer dans onReady</span>
+<span class="c-key">const</span> chart = <span class="c-key">new</span> Mitoera.<span class="c-fn">SeatingChart</span>({
+  <span class="c-str">divId</span>: <span class="c-val">'mitoera-chart'</span>,
+  <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_pub_xxxxxxxx'</span>,
+  <span class="c-str">event</span>: <span class="c-val">'UUID_DE_L_EVENEMENT'</span>,
+  <span class="c-str">onReady</span>: () => {
+    <span class="c-key">const</span> saved = JSON.<span class="c-fn">parse</span>(localStorage.<span class="c-fn">getItem</span>(<span class="c-val">'mitoera_seats'</span>) || <span class="c-val">'[]'</span>);
+    <span class="c-key">if</span> (saved.length) {
+      chart.<span class="c-fn">selectSeats</span>(saved);
+      localStorage.<span class="c-fn">removeItem</span>(<span class="c-val">'mitoera_seats'</span>); <span class="c-comment">// nettoyage</span>
+    }
+  },
+});
+chart.<span class="c-fn">render</span>();</code></pre>
+        </div>
 
         <h3>Éditeur de plan embarqué</h3>
         <p>Pour embarquer l'éditeur de plan dans votre back-office, utilisez votre <strong>clé secrète</strong>. En sandbox, passez <code>sandbox: true</code> pour que le SDK utilise l'environnement de test.</p>
