@@ -41,6 +41,9 @@ export const router = createRouter({
 });
 
 router.beforeEach((to) => {
+  if (window.location.hostname === 'docs.mitoera.com' && to.name !== 'docs') {
+    return { name: 'docs' };
+  }
   if (!to.meta.public && !auth.isLoggedIn()) {
     return { name: 'login' };
   }
