@@ -302,13 +302,6 @@ export const adminApi = {
   async getMercureToken(eventId) {
     return (await apiFetch(`/api/mercure-token?eventId=${eventId}`)).json();
   },
-  async updateEventHoldDuration(eventId, holdDurationMinutes) {
-    return (await apiFetch(`/api/events/${eventId}/hold-duration`, {
-      method: 'PATCH',
-      body: JSON.stringify({ holdDurationMinutes }),
-    })).json();
-  },
-
   // ---------- SANDBOX ----------
   async sandboxReset() {
     return (await apiFetch('/admin/sandbox/reset', { method: 'POST' })).json();

@@ -169,25 +169,6 @@ function catById(id) {
   return props.categories.find(c => c.id === id) || { color: '#9ca3af', name: 'Sans catégorie' };
 }
 
-// ---- Hold duration (Settings tab) ----
-const holdDurationMinutes = ref(15);
-const holdDurationSaving = ref(false);
-const holdDurationSaved = ref(false);
-
-watch(eventDetail, (d) => {
-  if (d) holdDurationMinutes.value = d.holdDurationMinutes ?? 15;
-});
-
-async function saveHoldDuration() {
-  holdDurationSaving.value = true;
-  holdDurationSaved.value = false;
-  try {
-    await adminApi.updateEventHoldDuration(selectedEvent.value.id, holdDurationMinutes.value);
-    holdDurationSaved.value = true;
-    setTimeout(() => { holdDurationSaved.value = false; }, 2000);
-  } finally { holdDurationSaving.value = false; }
-}
-
 // ---- Bulk status change (Status tab) ----
 const selectedSeats = ref(new Set());
 const updating = ref(false);
@@ -454,25 +435,7 @@ function seatTextColor(key) {
 
       <!-- ===== SETTINGS ===== -->
       <div v-else-if="activeTab === 'settings'" class="max-w-sm flex flex-col gap-4">
-        <div class="bg-white border border-gray-200 rounded-xl p-5">
-          <h3 class="font-semibold text-gray-800 mb-1">Durée de réservation temporaire</h3>
-          <p class="text-xs text-gray-500 mb-4">Temps avant qu'un siège en attente soit automatiquement libéré.</p>
-          <div class="flex items-center gap-3">
-            <input
-              v-model.number="holdDurationMinutes"
-              type="number" min="1" max="120" step="1"
-              class="w-24 px-3 py-2 border border-gray-200 rounded-lg text-sm text-center font-mono"
-            />
-            <span class="text-sm text-gray-600">minutes</span>
-          </div>
-          <div class="flex items-center gap-3 mt-4">
-            <button @click="saveHoldDuration" :disabled="holdDurationSaving"
-              class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold disabled:opacity-40 transition">
-              {{ holdDurationSaving ? 'Enregistrement…' : 'Enregistrer' }}
-            </button>
-            <span v-if="holdDurationSaved" class="text-xs text-green-600 font-medium">✓ Sauvegardé</span>
-          </div>
-        </div>
+        <p class="text-sm text-gray-500">La durée d'expiration des sièges en attente est configurée dans les <router-link to="/settings" class="text-indigo-600 hover:underline">paramètres globaux</router-link>.</p>
       </div>
 
       <!-- ===== CATEGORIES ===== -->

@@ -41,22 +41,28 @@ const planColors = ref({}); // { [planId]: { [categoryId]: color } }
 
 async function load() {
   loading.value = true;
-  const [evts, allPlans] = await Promise.all([adminApi.listEvents(), adminApi.listVenues()]);
-  events.value = evts;
-  plans.value = allPlans;
-  // Charger les couleurs des catégories pour chaque plan (même logique que PlansView)
-  const results = await Promise.all(
-    allPlans
-      .filter(p => p.objects?.length)
-      .map(async p => {
-        try {
-          const cats = await adminApi.listCategories(p.id);
-          return [String(p.id), Object.fromEntries(cats.map(c => [c.id, c.color]))];
-        } catch { return [String(p.id), {}]; }
-      })
-  );
-  planColors.value = Object.fromEntries(results);
-  loading.value = false;
+  error.value = '';
+  try {
+    const [evts, allPlans] = await Promise.all([adminApi.listEvents(), adminApi.listVenues()]);
+    events.value = evts;
+    plans.value = allPlans;
+    // Charger les couleurs des catégories pour chaque plan (même logique que PlansView)
+    const results = await Promise.all(
+      allPlans
+        .filter(p => p.objects?.length)
+        .map(async p => {
+          try {
+            const cats = await adminApi.listCategories(p.id);
+            return [String(p.id), Object.fromEntries(cats.map(c => [c.id, c.color]))];
+          } catch { return [String(p.id), {}]; }
+        })
+    );
+    planColors.value = Object.fromEntries(results);
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function createEvent() {

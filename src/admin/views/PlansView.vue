@@ -26,20 +26,26 @@ const STATUS_COLORS = { draft: 'bg-yellow-100 text-yellow-700', published: 'bg-g
 
 async function loadPlans() {
   loading.value = true;
-  plans.value = await adminApi.listVenues();
-  // Fetch categories in parallel for plans that have objects
-  const results = await Promise.all(
-    plans.value
-      .filter(p => p.objects?.length)
-      .map(async p => {
-        try {
-          const cats = await adminApi.listCategories(p.id);
-          return [p.id, Object.fromEntries(cats.map(c => [c.id, c.color]))];
-        } catch { return [p.id, {}]; }
-      })
-  );
-  planColors.value = Object.fromEntries(results);
-  loading.value = false;
+  error.value = '';
+  try {
+    plans.value = await adminApi.listVenues();
+    // Fetch categories in parallel for plans that have objects
+    const results = await Promise.all(
+      plans.value
+        .filter(p => p.objects?.length)
+        .map(async p => {
+          try {
+            const cats = await adminApi.listCategories(p.id);
+            return [p.id, Object.fromEntries(cats.map(c => [c.id, c.color]))];
+          } catch { return [p.id, {}]; }
+        })
+    );
+    planColors.value = Object.fromEntries(results);
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function createPlan() {
