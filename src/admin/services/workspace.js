@@ -4,7 +4,7 @@ import { apiFetch, auth } from './auth.js';
 export const workspaces = ref([]);   // tous les workspaces de l'utilisateur
 export const workspace  = ref(null); // workspace actif (current: true)
 
-export async function loadWorkspaces() {
+export async function loadWorkspaces(retries = 5) {
   if (!auth.isLoggedIn()) return;
   try {
     const res = await apiFetch('/api/workspaces');
@@ -14,13 +14,23 @@ export async function loadWorkspaces() {
     workspace.value = current;
 
     // JWT sans workspaceId (ancien token) — auto-switch sur le premier workspace
-    // pour obtenir un JWT enrichi sans forcer une déconnexion manuelle
+    // pour obtenir un JWT enrichi sans forcer une déconnexion manuelle.
+    // Erreur isolée : si le switch échoue (ex: 502 pendant restart container),
+    // on conserve workspace.value = current déjà positionné ci-dessus.
     if (current && !list.find(w => w.current)) {
-      await switchWorkspace(current.id);
+      try {
+        await switchWorkspace(current.id);
+      } catch {
+        // switch failed — workspace reste visible, sera corrigé au prochain rechargement
+      }
     }
   } catch {
     workspaces.value = [];
     workspace.value  = null;
+    // Retry si échec temporaire (ex: container qui redémarre après deploy)
+    if (retries > 0) {
+      setTimeout(() => loadWorkspaces(retries - 1), 8000);
+    }
   }
 }
 
