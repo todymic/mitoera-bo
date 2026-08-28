@@ -130,7 +130,8 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
             <div class="key-badge key-public">public</div>
             <strong>Clé publique</strong>
             <p>Accès en lecture seule pour le widget client. Peut être exposée dans le code front-end.</p>
-            <code>pk_live_xxxxxxxx</code>
+            <code>pk_live_xxxxxxxx</code> (prod)<br>
+            <code>pk_test_xxxxxxxx</code> (sandbox)
           </div>
         </div>
 
