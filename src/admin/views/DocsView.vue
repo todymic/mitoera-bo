@@ -109,12 +109,12 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
         <h1>Mitoera API</h1>
         <p class="lead">L'API Mitoera vous permet de gérer vos plans de salle, événements et réservations par programmation. Elle est accessible en REST, retourne du JSON et utilise des clés API pour l'authentification.</p>
         <div class="info-box">
-          <strong>Base URL</strong>
+          <strong>Base URL — Production</strong>
           <code>https://api.mitoera.com/api</code>
           <br><br>
-          <strong>Sandbox</strong>
+          <strong>Base URL — Sandbox</strong>
           <code>https://api.mitoera.com/sandbox-api</code>
-          <p style="margin-top:8px;margin-bottom:0">Le sandbox est un environnement isolé avec des données distinctes. Il accepte les mêmes endpoints et clés que la production.</p>
+          <p style="margin-top:8px;margin-bottom:0">Le sandbox est un environnement isolé avec des données distinctes. Avec les nouvelles clés (<code>pk_live_</code> / <code>pk_test_</code>), l'URL est <strong>déduite automatiquement</strong> — vous n'avez pas besoin de la spécifier.</p>
         </div>
       </section>
 
@@ -134,7 +134,8 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
             <div class="key-badge key-public">public</div>
             <strong>Clé publique</strong>
             <p>Accès en lecture seule pour le widget client. Peut être exposée dans le code front-end.</p>
-            <code>pk_pub_xxxxxxxx</code>
+            <code>pk_live_xxxxxxxx</code> (prod)<br>
+            <code>pk_test_xxxxxxxx</code> (sandbox)
           </div>
         </div>
 
@@ -318,11 +319,11 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
             <pre><code>[
   {
     <span class="c-str">"id"</span>: <span class="c-val">"01926b1c-…"</span>,
-    <span class="c-str">"name"</span>: <span class="c-val">"Concert 12 mars"</span>,
+    <span class="c-str">"title"</span>: <span class="c-val">"Concert 12 mars"</span>,
     <span class="c-str">"identifier"</span>: <span class="c-val">"concert-12-mars"</span>,
     <span class="c-str">"chartId"</span>: <span class="c-val">"01926a3f-…"</span>,
-    <span class="c-str">"date"</span>: <span class="c-val">"2025-03-12T20:00:00Z"</span>,
-    <span class="c-str">"holdDuration"</span>: <span class="c-val">15</span>
+    <span class="c-str">"chartName"</span>: <span class="c-val">"Salle principale"</span>,
+    <span class="c-str">"createdAt"</span>: <span class="c-val">"2025-03-01T10:00:00Z"</span>
   }
 ]</code></pre>
           </div>
@@ -336,10 +337,9 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
           <table class="params-table">
             <thead><tr><th>Champ</th><th>Type</th><th>Requis</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>name</code></td><td>string</td><td><span class="req">oui</span></td><td>Nom de l'événement</td></tr>
-              <tr><td><code>date</code></td><td>string (ISO 8601)</td><td>non</td><td>Date de l'événement</td></tr>
+              <tr><td><code>title</code></td><td>string</td><td><span class="req">oui</span></td><td>Titre de l'événement</td></tr>
+              <tr><td><code>identifier</code></td><td>string</td><td><span class="req">oui</span></td><td>Identifiant textuel unique (slug)</td></tr>
               <tr><td><code>chartId</code></td><td>uuid (string)</td><td>non</td><td>UUID du plan à associer</td></tr>
-              <tr><td><code>holdDuration</code></td><td>integer</td><td>non</td><td>Durée de blocage en minutes (défaut: 15)</td></tr>
             </tbody>
           </table>
           <div class="code-block">
@@ -347,7 +347,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
             <pre><code>curl -X POST https://api.mitoera.com/api/events \
   -u <span class="c-str">pk_abc123:sk_xyz789</span> \
   -H <span class="c-str">'Content-Type: application/json'</span> \
-  -d <span class="c-str">'{"name":"Concert 12 mars","date":"2025-03-12T20:00:00Z","chartId":"01926a3f-1234-7abc-8def-000000000001","holdDuration":15}'</span></code></pre>
+  -d <span class="c-str">'{"title":"Concert 12 mars","identifier":"concert-12-mars","chartId":"01926a3f-1234-7abc-8def-000000000001"}'</span></code></pre>
           </div>
         </div>
 
@@ -375,7 +375,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
             <span class="method put">PUT</span>
             <code class="endpoint-path">/api/events/<span class="path-param">{eventId}</span></code>
           </div>
-          <p>Met à jour le nom, la date ou la durée de blocage d'un événement.</p>
+          <p>Met à jour le titre ou l'identifiant d'un événement.</p>
           <table class="params-table">
             <thead><tr><th>Paramètre URL</th><th>Type</th><th>Description</th></tr></thead>
             <tbody>
@@ -385,9 +385,8 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
           <table class="params-table">
             <thead><tr><th>Champ</th><th>Type</th><th>Requis</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>name</code></td><td>string</td><td>non</td><td>Nouveau nom</td></tr>
-              <tr><td><code>date</code></td><td>string (ISO 8601)</td><td>non</td><td>Nouvelle date</td></tr>
-              <tr><td><code>holdDuration</code></td><td>integer</td><td>non</td><td>Nouvelle durée de blocage en minutes</td></tr>
+              <tr><td><code>title</code></td><td>string</td><td><span class="req">oui</span></td><td>Nouveau titre</td></tr>
+              <tr><td><code>identifier</code></td><td>string</td><td><span class="req">oui</span></td><td>Nouvel identifiant textuel</td></tr>
             </tbody>
           </table>
           <div class="code-block">
@@ -395,7 +394,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
             <pre><code>curl -X PUT https://api.mitoera.com/api/events/<span class="c-val">01926b1c-5678-7abc-8def-000000000002</span> \
   -u <span class="c-str">pk_abc123:sk_xyz789</span> \
   -H <span class="c-str">'Content-Type: application/json'</span> \
-  -d <span class="c-str">'{"name":"Concert 15 mars","holdDuration":20}'</span></code></pre>
+  -d <span class="c-str">'{"title":"Concert 15 mars","identifier":"concert-15-mars"}'</span></code></pre>
           </div>
         </div>
 
@@ -488,7 +487,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
             <span class="method post">POST</span>
             <code class="endpoint-path">/api/events/<span class="path-param">{eventId}</span>/hold</code>
           </div>
-          <p>Bloque temporairement des sièges (durée configurée par <code>holdDuration</code> sur l'événement). Utilisé pour garantir les sièges pendant le checkout.</p>
+          <p>Bloque temporairement des sièges pendant la durée configurée dans les paramètres globaux (<strong>Paramètres &gt; Durée de hold</strong>). Utilisé pour garantir les sièges pendant le checkout.</p>
           <table class="params-table">
             <thead><tr><th>Champ</th><th>Type</th><th>Requis</th><th>Description</th></tr></thead>
             <tbody>
@@ -649,14 +648,15 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
         <p>Le widget JavaScript embarque le plan de salle interactif dans votre site. Il utilise votre <strong>clé publique</strong> et n'expose aucun accès en écriture.</p>
 
         <h3>Intégration</h3>
+        <p>L'environnement (prod ou sandbox) est <strong>détecté automatiquement</strong> depuis le préfixe de la clé. Aucune option supplémentaire n'est nécessaire.</p>
         <div class="code-block">
-          <div class="code-label">HTML — Production</div>
+          <div class="code-label">HTML — Production (clé pk_live_…)</div>
           <pre><code><span class="c-tag">&lt;div</span> <span class="c-attr">id</span>=<span class="c-str">"mitoera-chart"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
 <span class="c-tag">&lt;script</span> <span class="c-attr">src</span>=<span class="c-str">"https://bo.mitoera.com/mitoera-widget.js"</span><span class="c-tag">&gt;&lt;/script&gt;</span>
 <span class="c-tag">&lt;script&gt;</span>
   <span class="c-key">new</span> Mitoera.<span class="c-fn">SeatingChart</span>({
     <span class="c-str">divId</span>: <span class="c-val">'mitoera-chart'</span>,
-    <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_pub_xxxxxxxx'</span>,  <span class="c-comment">// clé publique (prod)</span>
+    <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_live_xxxxxxxx'</span>,  <span class="c-comment">// → prod détecté automatiquement</span>
     <span class="c-str">event</span>: <span class="c-val">'UUID_DE_L_EVENEMENT'</span>,
     <span class="c-str">onSeatSelected</span>:   (seat) =&gt; console.<span class="c-fn">log</span>(<span class="c-val">'sélectionné'</span>, seat),
     <span class="c-str">onSeatDeselected</span>: (seat) =&gt; console.<span class="c-fn">log</span>(<span class="c-val">'désélectionné'</span>, seat),
@@ -668,15 +668,14 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
 <span class="c-tag">&lt;/script&gt;</span></code></pre>
         </div>
         <div class="code-block">
-          <div class="code-label">HTML — Sandbox</div>
+          <div class="code-label">HTML — Sandbox (clé pk_test_…)</div>
           <pre><code><span class="c-tag">&lt;div</span> <span class="c-attr">id</span>=<span class="c-str">"mitoera-chart"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
 <span class="c-tag">&lt;script</span> <span class="c-attr">src</span>=<span class="c-str">"https://bo.mitoera.com/mitoera-widget.js"</span><span class="c-tag">&gt;&lt;/script&gt;</span>
 <span class="c-tag">&lt;script&gt;</span>
   <span class="c-key">new</span> Mitoera.<span class="c-fn">SeatingChart</span>({
     <span class="c-str">divId</span>: <span class="c-val">'mitoera-chart'</span>,
-    <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_pub_xxxxxxxx'</span>,  <span class="c-comment">// clé publique sandbox</span>
+    <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_test_xxxxxxxx'</span>,  <span class="c-comment">// → sandbox détecté automatiquement</span>
     <span class="c-str">event</span>: <span class="c-val">'UUID_DE_L_EVENEMENT'</span>,
-    <span class="c-str">sandbox</span>: <span class="c-key">true</span>,  <span class="c-comment">// utilise /sandbox-render au lieu de /render</span>
     <span class="c-str">onSeatSelected</span>:   (seat) =&gt; console.<span class="c-fn">log</span>(<span class="c-val">'sélectionné'</span>, seat),
     <span class="c-str">onSeatDeselected</span>: (seat) =&gt; console.<span class="c-fn">log</span>(<span class="c-val">'désélectionné'</span>, seat),
   }).<span class="c-fn">render</span>();
@@ -688,9 +687,9 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
           <thead><tr><th>Option</th><th>Type</th><th>Description</th></tr></thead>
           <tbody>
             <tr><td><code>divId</code></td><td>string</td><td>ID de l'élément HTML conteneur</td></tr>
-            <tr><td><code>workspaceKey</code></td><td>string</td><td>Clé publique (<code>pk_pub_…</code>)</td></tr>
+            <tr><td><code>workspaceKey</code></td><td>string</td><td>Clé publique — <code>pk_live_…</code> (prod) ou <code>pk_test_…</code> (sandbox). L'env est déduit automatiquement.</td></tr>
             <tr><td><code>event</code></td><td>string (uuid)</td><td>UUID de l'événement à afficher</td></tr>
-            <tr><td><code>sandbox</code></td><td>boolean</td><td>Active l'env. sandbox — utilise <code>/sandbox-render</code> au lieu de <code>/render</code> (défaut : <code>false</code>)</td></tr>
+            <tr><td><code>sandbox</code></td><td>boolean</td><td><em>Déprécié.</em> Ignoré pour les clés <code>pk_live_</code> / <code>pk_test_</code>. Maintenu pour la rétrocompatibilité avec les clés legacy <code>pk_pub_</code>.</td></tr>
             <tr><td><code>showLegend</code></td><td>boolean</td><td>Afficher la légende des catégories (défaut : <code>true</code>)</td></tr>
             <tr><td><code>showResume</code></td><td>boolean</td><td>Afficher le résumé des sièges sélectionnés en footer du plan — format <code>● CATÉGORIE — N sièges</code> (défaut : <code>false</code>)</td></tr>
             <tr><td><code>onSeatSelected</code></td><td>function</td><td>Callback — siège sélectionné</td></tr>
@@ -727,7 +726,7 @@ window.location.href = <span class="c-val">'/login?next=/evenement/xxx'</span>;
 <span class="c-comment">// ② Au retour sur la page du plan — restaurer dans onReady</span>
 <span class="c-key">const</span> chart = <span class="c-key">new</span> Mitoera.<span class="c-fn">SeatingChart</span>({
   <span class="c-str">divId</span>: <span class="c-val">'mitoera-chart'</span>,
-  <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_pub_xxxxxxxx'</span>,
+  <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_live_xxxxxxxx'</span>,  <span class="c-comment">// ou pk_test_… pour sandbox</span>
   <span class="c-str">event</span>: <span class="c-val">'UUID_DE_L_EVENEMENT'</span>,
   <span class="c-str">onReady</span>: () => {
     <span class="c-key">const</span> saved = JSON.<span class="c-fn">parse</span>(localStorage.<span class="c-fn">getItem</span>(<span class="c-val">'mitoera_seats'</span>) || <span class="c-val">'[]'</span>);
