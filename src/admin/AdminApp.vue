@@ -13,6 +13,7 @@ const urlToken = new URLSearchParams(window.location.search).get('token');
 if (urlToken) auth.setToken(urlToken);
 
 const isLoggedIn = auth.loggedIn;
+const route  = useRoute();
 const router = useRouter();
 function logout() { auth.clear(); workspace.value = null; workspaces.value = []; router.push({ name: 'login' }); }
 
