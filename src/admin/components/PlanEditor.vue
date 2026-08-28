@@ -4,6 +4,7 @@ import { adminApi } from '../services/adminApi';
 import { computeSeatLabel, computeAxisLabel, ROW_FORMATS, COL_FORMATS, DIRECTIONS } from '../../services/seatLabel';
 import { FREE_ZONE_ICONS, FREE_ZONE_PATTERNS, iconById, patternStyle } from '../../services/icons';
 import PreviewPlan from './PreviewPlan.vue';
+import { activePlanId, activePlanDirty, activePlanStatus } from '../services/activePlan.js';
 
 const props = defineProps({
   venueId: { type: String, required: true },
@@ -1526,7 +1527,17 @@ watch(isDirty, async (dirty) => {
   if (dirty) {
     try { await adminApi.markVenuePendingChanges(props.venueId); } catch (_) {}
   }
-}, { immediate: false });
+  activePlanDirty.value = dirty;
+}, { immediate: true });
+
+watch(() => props.planStatus, (s) => { activePlanStatus.value = s; }, { immediate: true });
+watch(() => props.venueId,    (id) => { activePlanId.value = id; },   { immediate: true });
+
+onBeforeUnmount(() => {
+  activePlanId.value     = null;
+  activePlanDirty.value  = false;
+  activePlanStatus.value = null;
+});
 
 const showPreview = ref(false);
 

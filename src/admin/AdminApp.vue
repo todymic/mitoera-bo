@@ -3,6 +3,8 @@ import { computed, onMounted, watch, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { auth, apiMode, switchMode } from './services/auth.js';
 import { workspace, workspaces, loadWorkspaces, switchWorkspace, createWorkspace } from './services/workspace.js';
+import { activePlanId, activePlanDirty, activePlanStatus } from './services/activePlan.js';
+import { adminApi } from './services/adminApi.js';
 
 // Auto-login via token JWT passé en URL (?token=...)
 // Le token doit être généré côté serveur via POST /api/auth/embed-token
@@ -40,9 +42,22 @@ const newWsLoading   = ref(false);
 
 async function doSwitch(id) {
   if (workspace.value?.id === id) { switcherOpen.value = false; return; }
+
+  // Si un plan publié est ouvert et a des modifications non sauvegardées,
+  // le repasser en brouillon avant de changer de workspace.
+  if (activePlanId.value && activePlanDirty.value && activePlanStatus.value === 'published') {
+    try { await adminApi.updateVenueStatus(activePlanId.value, 'draft'); } catch (_) {}
+  }
+
   await switchWorkspace(id);
   switcherOpen.value = false;
-  window.location.reload();
+  // Retourner à la liste des plans si on était dans l'éditeur
+  // (le plan appartient à l'ancien workspace)
+  if (route.name === 'plan-editor') {
+    window.location.href = '/plans';
+  } else {
+    window.location.reload();
+  }
 }
 
 function openCreate() {
