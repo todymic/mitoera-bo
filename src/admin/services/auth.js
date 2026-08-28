@@ -86,7 +86,6 @@ export function hasEmbedApiKey() {
 }
 
 export async function apiFetch(path, options = {}) {
-  const { forceProd = false, ...fetchOptions } = options;
   const authHeader = _embedApiKey
     ? { Authorization: `Basic ${btoa(_embedApiKey)}` }
     : (() => { const t = auth.getToken(); return t ? { Authorization: `Bearer ${t}` } : {}; })();
@@ -94,14 +93,11 @@ export async function apiFetch(path, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
     ...authHeader,
-    ...fetchOptions.headers,
+    ...options.headers,
   };
 
-  // forceProd: les données account-level (workspaces) sont dans le DB prod,
-  // même en mode sandbox — on force le prod API base pour ces appels.
-  const base = forceProd ? '/api' : getApiBase();
   const url = path.startsWith('/api/')
-    ? `${base}${path.slice(4)}`
+    ? `${getApiBase()}${path.slice(4)}`
     : path;
   const res = await fetch(url, { ...options, headers });
 
