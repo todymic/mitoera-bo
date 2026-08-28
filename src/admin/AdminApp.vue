@@ -84,7 +84,6 @@ async function submitCreate() {
   }
 }
 
-const route = useRoute();
 const isEmbed = computed(() => route.query.embed === 'true');
 const isFullscreen = computed(() => route.name === 'docs');
 
