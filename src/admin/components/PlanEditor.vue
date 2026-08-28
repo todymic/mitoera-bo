@@ -5,6 +5,8 @@ import { computeSeatLabel, computeAxisLabel, ROW_FORMATS, COL_FORMATS, DIRECTION
 import { FREE_ZONE_ICONS, FREE_ZONE_PATTERNS, iconById, patternStyle } from '../../services/icons';
 import PreviewPlan from './PreviewPlan.vue';
 import { activePlanId, activePlanDirty, activePlanStatus } from '../services/activePlan.js';
+import { apiMode } from '../services/auth.js';
+const isSandbox = computed(() => apiMode.value === 'sandbox');
 
 const props = defineProps({
   venueId: { type: String, required: true },
@@ -2014,6 +2016,20 @@ async function saveAll() {
           }"
           @pointerdown.self="activeTool ? null : deselect()"
           @click.self="activeTool ? null : deselect()">
+
+          <!-- Filigrane TEST en mode sandbox -->
+          <svg v-if="isSandbox"
+            class="absolute inset-0 pointer-events-none select-none"
+            :width="canvasWidth" :height="canvasHeight"
+            style="z-index:9999;opacity:0.07"
+            xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="watermark-test" x="0" y="0" width="220" height="220" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+                <text x="10" y="80" font-family="Arial, sans-serif" font-size="52" font-weight="900" fill="#1e293b" letter-spacing="6">TEST</text>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#watermark-test)" />
+          </svg>
 
           <!-- Images (background + foreground) — zIndex piloté par layer, jamais par bringToFront -->
           <img
