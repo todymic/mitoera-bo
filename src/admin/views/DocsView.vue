@@ -109,12 +109,8 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
         <h1>Mitoera API</h1>
         <p class="lead">L'API Mitoera vous permet de gérer vos plans de salle, événements et réservations par programmation. Elle est accessible en REST, retourne du JSON et utilise des clés API pour l'authentification.</p>
         <div class="info-box">
-          <strong>Base URL — Production</strong>
+          <strong>Base URL</strong>
           <code>https://api.mitoera.com/api</code>
-          <br><br>
-          <strong>Base URL — Sandbox</strong>
-          <code>https://api.mitoera.com/sandbox-api</code>
-          <p style="margin-top:8px;margin-bottom:0">Le sandbox est un environnement isolé avec des données distinctes. Avec les nouvelles clés (<code>pk_live_</code> / <code>pk_test_</code>), l'URL est <strong>déduite automatiquement</strong> — vous n'avez pas besoin de la spécifier.</p>
         </div>
       </section>
 
@@ -134,8 +130,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
             <div class="key-badge key-public">public</div>
             <strong>Clé publique</strong>
             <p>Accès en lecture seule pour le widget client. Peut être exposée dans le code front-end.</p>
-            <code>pk_live_xxxxxxxx</code> (prod)<br>
-            <code>pk_test_xxxxxxxx</code> (sandbox)
+            <code>pk_live_xxxxxxxx</code>
           </div>
         </div>
 
@@ -648,15 +643,14 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
         <p>Le widget JavaScript embarque le plan de salle interactif dans votre site. Il utilise votre <strong>clé publique</strong> et n'expose aucun accès en écriture.</p>
 
         <h3>Intégration</h3>
-        <p>L'environnement (prod ou sandbox) est <strong>détecté automatiquement</strong> depuis le préfixe de la clé. Aucune option supplémentaire n'est nécessaire.</p>
         <div class="code-block">
-          <div class="code-label">HTML — Production (clé pk_live_…)</div>
+          <div class="code-label">HTML</div>
           <pre><code><span class="c-tag">&lt;div</span> <span class="c-attr">id</span>=<span class="c-str">"mitoera-chart"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
 <span class="c-tag">&lt;script</span> <span class="c-attr">src</span>=<span class="c-str">"https://bo.mitoera.com/mitoera-widget.js"</span><span class="c-tag">&gt;&lt;/script&gt;</span>
 <span class="c-tag">&lt;script&gt;</span>
   <span class="c-key">new</span> Mitoera.<span class="c-fn">SeatingChart</span>({
     <span class="c-str">divId</span>: <span class="c-val">'mitoera-chart'</span>,
-    <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_live_xxxxxxxx'</span>,  <span class="c-comment">// → prod détecté automatiquement</span>
+    <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_live_xxxxxxxx'</span>,
     <span class="c-str">event</span>: <span class="c-val">'UUID_DE_L_EVENEMENT'</span>,
     <span class="c-str">onSeatSelected</span>:   (seat) =&gt; console.<span class="c-fn">log</span>(<span class="c-val">'sélectionné'</span>, seat),
     <span class="c-str">onSeatDeselected</span>: (seat) =&gt; console.<span class="c-fn">log</span>(<span class="c-val">'désélectionné'</span>, seat),
@@ -667,29 +661,14 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
   }).<span class="c-fn">render</span>();
 <span class="c-tag">&lt;/script&gt;</span></code></pre>
         </div>
-        <div class="code-block">
-          <div class="code-label">HTML — Sandbox (clé pk_test_…)</div>
-          <pre><code><span class="c-tag">&lt;div</span> <span class="c-attr">id</span>=<span class="c-str">"mitoera-chart"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
-<span class="c-tag">&lt;script</span> <span class="c-attr">src</span>=<span class="c-str">"https://bo.mitoera.com/mitoera-widget.js"</span><span class="c-tag">&gt;&lt;/script&gt;</span>
-<span class="c-tag">&lt;script&gt;</span>
-  <span class="c-key">new</span> Mitoera.<span class="c-fn">SeatingChart</span>({
-    <span class="c-str">divId</span>: <span class="c-val">'mitoera-chart'</span>,
-    <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_test_xxxxxxxx'</span>,  <span class="c-comment">// → sandbox détecté automatiquement</span>
-    <span class="c-str">event</span>: <span class="c-val">'UUID_DE_L_EVENEMENT'</span>,
-    <span class="c-str">onSeatSelected</span>:   (seat) =&gt; console.<span class="c-fn">log</span>(<span class="c-val">'sélectionné'</span>, seat),
-    <span class="c-str">onSeatDeselected</span>: (seat) =&gt; console.<span class="c-fn">log</span>(<span class="c-val">'désélectionné'</span>, seat),
-  }).<span class="c-fn">render</span>();
-<span class="c-tag">&lt;/script&gt;</span></code></pre>
-        </div>
 
         <h3>Options</h3>
         <table class="params-table">
           <thead><tr><th>Option</th><th>Type</th><th>Description</th></tr></thead>
           <tbody>
             <tr><td><code>divId</code></td><td>string</td><td>ID de l'élément HTML conteneur</td></tr>
-            <tr><td><code>workspaceKey</code></td><td>string</td><td>Clé publique — <code>pk_live_…</code> (prod) ou <code>pk_test_…</code> (sandbox). L'env est déduit automatiquement.</td></tr>
+            <tr><td><code>workspaceKey</code></td><td>string</td><td>Clé publique du workspace (<code>pk_live_…</code>)</td></tr>
             <tr><td><code>event</code></td><td>string (uuid)</td><td>UUID de l'événement à afficher</td></tr>
-            <tr><td><code>sandbox</code></td><td>boolean</td><td><em>Déprécié.</em> Ignoré pour les clés <code>pk_live_</code> / <code>pk_test_</code>. Maintenu pour la rétrocompatibilité avec les clés legacy <code>pk_pub_</code>.</td></tr>
             <tr><td><code>showLegend</code></td><td>boolean</td><td>Afficher la légende des catégories (défaut : <code>true</code>)</td></tr>
             <tr><td><code>showResume</code></td><td>boolean</td><td>Afficher le résumé des sièges sélectionnés en footer du plan — format <code>● CATÉGORIE — N sièges</code> (défaut : <code>false</code>)</td></tr>
             <tr><td><code>onSeatSelected</code></td><td>function</td><td>Callback — siège sélectionné</td></tr>
@@ -726,7 +705,7 @@ window.location.href = <span class="c-val">'/login?next=/evenement/xxx'</span>;
 <span class="c-comment">// ② Au retour sur la page du plan — restaurer dans onReady</span>
 <span class="c-key">const</span> chart = <span class="c-key">new</span> Mitoera.<span class="c-fn">SeatingChart</span>({
   <span class="c-str">divId</span>: <span class="c-val">'mitoera-chart'</span>,
-  <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_live_xxxxxxxx'</span>,  <span class="c-comment">// ou pk_test_… pour sandbox</span>
+  <span class="c-str">workspaceKey</span>: <span class="c-val">'pk_live_xxxxxxxx'</span>,
   <span class="c-str">event</span>: <span class="c-val">'UUID_DE_L_EVENEMENT'</span>,
   <span class="c-str">onReady</span>: () => {
     <span class="c-key">const</span> saved = JSON.<span class="c-fn">parse</span>(localStorage.<span class="c-fn">getItem</span>(<span class="c-val">'mitoera_seats'</span>) || <span class="c-val">'[]'</span>);
@@ -740,9 +719,9 @@ chart.<span class="c-fn">render</span>();</code></pre>
         </div>
 
         <h3>Éditeur de plan embarqué</h3>
-        <p>Pour embarquer l'éditeur de plan dans votre back-office, utilisez votre <strong>clé secrète</strong>. En sandbox, passez <code>sandbox: true</code> pour que le SDK utilise l'environnement de test.</p>
+        <p>Pour embarquer l'éditeur de plan dans votre back-office, utilisez votre <strong>clé secrète</strong>.</p>
         <div class="code-block">
-          <div class="code-label">HTML — Production</div>
+          <div class="code-label">HTML</div>
           <pre><code><span class="c-tag">&lt;div</span> <span class="c-attr">id</span>=<span class="c-str">"chartDesigner"</span> <span class="c-attr">style</span>=<span class="c-str">"height:600px"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
 <span class="c-tag">&lt;script</span> <span class="c-attr">src</span>=<span class="c-str">"https://bo.mitoera.com/mitoera-editor.js"</span><span class="c-tag">&gt;&lt;/script&gt;</span>
 <span class="c-tag">&lt;script&gt;</span>
@@ -750,19 +729,6 @@ chart.<span class="c-fn">render</span>();</code></pre>
     <span class="c-str">divId</span>: <span class="c-val">'chartDesigner'</span>,
     <span class="c-str">secretKey</span>: <span class="c-val">'pk_xxxxxxxx:sk_xxxxxxxx'</span>,
     <span class="c-str">chartKey</span>: <span class="c-val">'UUID_DU_PLAN'</span>,
-  }).<span class="c-fn">render</span>();
-<span class="c-tag">&lt;/script&gt;</span></code></pre>
-        </div>
-        <div class="code-block">
-          <div class="code-label">HTML — Sandbox</div>
-          <pre><code><span class="c-tag">&lt;div</span> <span class="c-attr">id</span>=<span class="c-str">"chartDesigner"</span> <span class="c-attr">style</span>=<span class="c-str">"height:600px"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
-<span class="c-tag">&lt;script</span> <span class="c-attr">src</span>=<span class="c-str">"https://bo.mitoera.com/mitoera-editor.js"</span><span class="c-tag">&gt;&lt;/script&gt;</span>
-<span class="c-tag">&lt;script&gt;</span>
-  <span class="c-key">new</span> mitoera.<span class="c-fn">ChartDesigner</span>({
-    <span class="c-str">divId</span>: <span class="c-val">'chartDesigner'</span>,
-    <span class="c-str">secretKey</span>: <span class="c-val">'pk_xxxxxxxx:sk_xxxxxxxx'</span>,
-    <span class="c-str">chartKey</span>: <span class="c-val">'UUID_DU_PLAN'</span>,
-    <span class="c-str">sandbox</span>: <span class="c-key">true</span>,  <span class="c-comment">// utilise https://api.mitoera.com/sandbox-api</span>
   }).<span class="c-fn">render</span>();
 <span class="c-tag">&lt;/script&gt;</span></code></pre>
         </div>
@@ -773,7 +739,6 @@ chart.<span class="c-fn">render</span>();</code></pre>
             <tr><td><code>secretKey</code></td><td>string</td><td>Clé secrète au format <code>keyId:secret</code></td></tr>
             <tr><td><code>chartKey</code></td><td>string (uuid)</td><td>UUID du plan à éditer</td></tr>
             <tr><td><code>eventKey</code></td><td>string (uuid)</td><td>UUID de l'événement lié (optionnel)</td></tr>
-            <tr><td><code>sandbox</code></td><td>boolean</td><td>Utiliser l'environnement sandbox (défaut: <code>false</code>)</td></tr>
           </tbody>
         </table>
       </section>
