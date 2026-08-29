@@ -1,12 +1,17 @@
-const API_BASE_PROD    = 'https://api.mitoera.com';
-const API_BASE_SANDBOX = 'https://api.mitoera.com/sandbox-api';
+const API_BASE  = 'https://api.mitoera.com/api';
 const EDITOR_URL = 'https://bo.mitoera.com/embed-editor.html';
 
-async function fetchEmbedToken(keyId, secret, sandbox = false) {
-  const base = sandbox ? API_BASE_SANDBOX : `${API_BASE_PROD}/api`;
-  const res = await fetch(`${base}/auth/embed-token`, {
+function isSandboxKey(keyId) {
+  return keyId.startsWith('pk_test_');
+}
+
+async function fetchEmbedToken(keyId, secret) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (isSandboxKey(keyId)) headers['X-Api-Mode'] = 'sandbox';
+
+  const res = await fetch(`${API_BASE}/auth/embed-token`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ keyId, secret }),
   });
   if (!res.ok) {
@@ -17,12 +22,11 @@ async function fetchEmbedToken(keyId, secret, sandbox = false) {
 }
 
 class MitoeraChartDesigner {
-  constructor({ divId, secretKey, chartKey, eventKey = null, sandbox = false }) {
+  constructor({ divId, secretKey, chartKey, eventKey = null }) {
     if (!divId || !secretKey || !chartKey) {
       throw new Error('MitoeraChartDesigner: divId, secretKey et chartKey sont requis');
     }
 
-    // secretKey format: "keyId:secret"
     const colonIndex = secretKey.indexOf(':');
     if (colonIndex === -1) throw new Error('MitoeraChartDesigner: secretKey doit être au format "keyId:secret"');
 
@@ -31,7 +35,6 @@ class MitoeraChartDesigner {
     this._secret   = secretKey.slice(colonIndex + 1);
     this._chartKey = chartKey;
     this._eventKey = eventKey;
-    this._sandbox  = sandbox;
   }
 
   async render() {
@@ -41,11 +44,10 @@ class MitoeraChartDesigner {
     el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:sans-serif;color:#666">Chargement…</div>';
 
     try {
-      const token = await fetchEmbedToken(this._keyId, this._secret, this._sandbox);
+      const token = await fetchEmbedToken(this._keyId, this._secret);
 
       const params = new URLSearchParams({ planId: this._chartKey, token });
       if (this._eventKey) params.set('eventId', this._eventKey);
-      if (this._sandbox)  params.set('sandbox', '1');
 
       const iframe = document.createElement('iframe');
       iframe.src         = `${EDITOR_URL}?${params}`;
