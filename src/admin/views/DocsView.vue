@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 
 const activeSection = ref('introduction');
+const menuOpen = ref(false);
 
 const sections = [
   { id: 'introduction',    label: 'Introduction' },
@@ -47,10 +48,30 @@ const sections = [
   { id: 'errors',  label: 'Codes d\'erreur' },
 ];
 
+function closeMenu() {
+  if (!menuOpen.value) return;
+  menuOpen.value = false;
+  document.body.style.overflow = '';
+}
+
+function toggleMenu() {
+  menuOpen.value = !menuOpen.value;
+  document.body.style.overflow = menuOpen.value ? 'hidden' : '';
+}
+
 function scrollTo(id) {
+  closeMenu();
   const el = document.getElementById(id);
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   activeSection.value = id;
+}
+
+function onResize() {
+  if (window.innerWidth > 900) closeMenu();
+}
+
+function onKeydown(e) {
+  if (e.key === 'Escape') closeMenu();
 }
 
 function onScroll() {
@@ -64,14 +85,40 @@ function onScroll() {
   }
 }
 
-onMounted(() => window.addEventListener('scroll', onScroll, { passive: true }));
-onUnmounted(() => window.removeEventListener('scroll', onScroll));
+onMounted(() => {
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onResize, { passive: true });
+  window.addEventListener('keydown', onKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', onScroll);
+  window.removeEventListener('resize', onResize);
+  window.removeEventListener('keydown', onKeydown);
+  document.body.style.overflow = '';
+});
 </script>
 
 <template>
   <div class="docs-root">
+    <!-- Topbar mobile -->
+    <header class="docs-topbar">
+      <button
+        class="menu-btn"
+        :class="{ open: menuOpen }"
+        :aria-expanded="menuOpen"
+        aria-label="Menu de navigation"
+        @click="toggleMenu"
+      ><span></span><span></span><span></span></button>
+      <span class="brand-dot"></span>
+      <span class="brand-label">API Reference</span>
+    </header>
+
+    <!-- Overlay mobile -->
+    <div class="docs-overlay" :class="{ show: menuOpen }" @click="closeMenu"></div>
+
     <!-- Sidebar -->
-    <nav class="docs-sidebar">
+    <nav class="docs-sidebar" :class="{ open: menuOpen }">
       <div class="sidebar-brand">
         <span class="brand-dot"></span>
         <span class="brand-label">API Reference</span>
@@ -872,6 +919,7 @@ chart.<span class="c-fn">render</span>();</code></pre>
 .docs-main {
   margin-left: var(--docs-sidebar-w);
   flex: 1;
+  min-width: 0;               /* sinon le flex item s'élargit au contenu (tables, <pre>) */
   max-width: 820px;
   padding: 56px 48px 120px;
 }
@@ -1119,8 +1167,128 @@ code {
 .http-code.warn { background: rgba(245,158,11,.12); color: #FCD34D; }
 .http-code.err  { background: rgba(239,68,68,.12);  color: #F87171; }
 
+/* ---- Topbar / overlay : mobile uniquement ---- */
+.docs-topbar { display: none; }
+.docs-overlay { display: none; }
+
+.menu-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 34px;
+  height: 34px;
+  margin-left: -6px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.menu-btn span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--docs-text);
+  transition: transform .2s, opacity .2s;
+}
+.menu-btn.open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.menu-btn.open span:nth-child(2) { opacity: 0; }
+.menu-btn.open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
 /* Scrollbar */
 .docs-sidebar::-webkit-scrollbar { width: 4px; }
 .docs-sidebar::-webkit-scrollbar-track { background: transparent; }
 .docs-sidebar::-webkit-scrollbar-thumb { background: var(--docs-border); border-radius: 2px; }
+
+/* ---- Tablette : on resserre le contenu ---- */
+@media (max-width: 1100px) {
+  .docs-main { padding: 48px 32px 100px; }
+}
+
+/* ---- Mobile / petite tablette : sidebar en drawer ---- */
+@media (max-width: 900px) {
+  .docs-topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 52px;
+    padding: 0 16px;
+    background: var(--docs-surface);
+    border-bottom: 1px solid var(--docs-border);
+  }
+
+  .docs-overlay {
+    display: block;
+    position: fixed;
+    inset: 52px 0 0 0;
+    z-index: 20;
+    background: rgba(0, 0, 0, .55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .22s ease;
+  }
+  .docs-overlay.show { opacity: 1; pointer-events: auto; }
+
+  .docs-sidebar {
+    top: 52px;
+    height: calc(100vh - 52px);
+    width: min(280px, 82vw);
+    z-index: 25;
+    padding-top: 16px;
+    transform: translateX(-100%);
+    transition: transform .22s ease;
+  }
+  .docs-sidebar.open {
+    transform: translateX(0);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .5);
+  }
+  .sidebar-brand { display: none; }
+
+  /* cibles tactiles plus larges */
+  .nav-item { padding: 9px 20px; font-size: 14px; }
+  .nav-child { padding-left: 34px; font-size: 13px; }
+
+  .docs-main {
+    margin-left: 0;
+    max-width: none;
+    padding: 76px 24px 96px;
+  }
+  .doc-section { margin-bottom: 48px; scroll-margin-top: 68px; }
+  .endpoint { scroll-margin-top: 68px; }
+  .key-types { grid-template-columns: 1fr; }
+}
+
+/* ---- Téléphone ---- */
+@media (max-width: 560px) {
+  .docs-main { padding: 70px 16px 80px; }
+
+  h1 { font-size: 23px; }
+  h2 { font-size: 18px; }
+  .lead { font-size: 14px; }
+
+  .endpoint { padding: 16px; margin: 20px 0; }
+  .endpoint-header { flex-wrap: wrap; gap: 8px; }
+  .endpoint-path { font-size: 13px; overflow-wrap: anywhere; }
+
+  .info-box { padding: 14px 16px; }
+  .info-box code { overflow-wrap: anywhere; }
+
+  .code-block pre { padding: 12px 14px; font-size: 12px; }
+
+  .params-table {
+    display: block;           /* scroll horizontal si la table ne rentre pas */
+    width: 100%;
+    overflow-x: auto;
+    font-size: 12.5px;
+  }
+  .params-table th { padding: 6px 8px; }
+  .params-table td { padding: 7px 8px; overflow-wrap: anywhere; }
+  .params-table code { font-size: 11.5px; overflow-wrap: anywhere; }
+}
 </style>
