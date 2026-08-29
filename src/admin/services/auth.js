@@ -92,6 +92,7 @@ export async function apiFetch(path, options = {}) {
 
   const headers = {
     'Content-Type': 'application/json',
+    ...(apiMode.value === 'sandbox' ? { 'X-Api-Mode': 'sandbox' } : {}),
     ...authHeader,
     ...options.headers,
   };
