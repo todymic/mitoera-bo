@@ -36,4 +36,7 @@ FROM nginx:alpine AS app
 COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
+HEALTHCHECK --interval=5s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget -qO- http://localhost/ > /dev/null || exit 1
+
 EXPOSE 80
