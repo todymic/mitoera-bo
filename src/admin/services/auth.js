@@ -64,7 +64,7 @@ export const auth = {
 };
 
 export function getApiBase() {
-  return apiMode.value === 'sandbox' ? '/sandbox-api' : '/api';
+  return '/api';
 }
 
 export function switchMode(mode) {
