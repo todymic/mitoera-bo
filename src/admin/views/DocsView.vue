@@ -1167,6 +1167,14 @@ code {
 .http-code.warn { background: rgba(245,158,11,.12); color: #FCD34D; }
 .http-code.err  { background: rgba(239,68,68,.12);  color: #F87171; }
 
+/* Les badges ne se coupent jamais en plusieurs lignes */
+.method,
+.req,
+.http-code,
+.status-pill,
+.key-badge,
+.section-tag { white-space: nowrap; }
+
 /* ---- Topbar / overlay : mobile uniquement ---- */
 .docs-topbar { display: none; }
 .docs-overlay { display: none; }
@@ -1288,7 +1296,8 @@ code {
     font-size: 12.5px;
   }
   .params-table th { padding: 6px 8px; }
-  .params-table td { padding: 7px 8px; overflow-wrap: anywhere; }
+  .params-table td { padding: 7px 8px; overflow-wrap: break-word; }
+  .params-table td:first-child { white-space: nowrap; }
   .params-table code { font-size: 11.5px; overflow-wrap: anywhere; }
 }
 </style>
