@@ -86,7 +86,6 @@ export function hasEmbedApiKey() {
 }
 
 export async function apiFetch(path, options = {}) {
-  const { forceProd, ...fetchOptions } = options;
   const authHeader = _embedApiKey
     ? { Authorization: `Basic ${btoa(_embedApiKey)}` }
     : (() => { const t = auth.getToken(); return t ? { Authorization: `Bearer ${t}` } : {}; })();
@@ -94,15 +93,13 @@ export async function apiFetch(path, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
     ...authHeader,
-    ...fetchOptions.headers,
+    ...options.headers,
   };
 
-  // forceProd: ignore le mode sandbox, appelle toujours /api/ (ex: workspaces = données de compte)
-  const base = forceProd ? '/api' : getApiBase();
   const url = path.startsWith('/api/')
-    ? `${base}${path.slice(4)}`
+    ? `${getApiBase()}${path.slice(4)}`
     : path;
-  const res = await fetch(url, { ...fetchOptions, headers });
+  const res = await fetch(url, { ...options, headers });
 
   if (res.status === 401) {
     if (!_embedApiKey) {

@@ -7,7 +7,7 @@ export const workspace  = ref(null); // workspace actif (current: true)
 export async function loadWorkspaces(retries = 5) {
   if (!auth.isLoggedIn()) return;
   try {
-    const res = await apiFetch('/api/workspaces', { forceProd: true });
+    const res = await apiFetch('/api/workspaces');
     const list = await res.json();
     workspaces.value = list;
     const current = list.find(w => w.current) ?? list[0] ?? null;
@@ -35,7 +35,7 @@ export async function loadWorkspaces(retries = 5) {
 }
 
 export async function switchWorkspace(id) {
-  const res  = await apiFetch(`/api/workspaces/${id}/switch`, { method: 'POST', forceProd: true });
+  const res  = await apiFetch(`/api/workspaces/${id}/switch`, { method: 'POST' });
   const data = await res.json();
   auth.setToken(data.token);
   await loadWorkspaces();
@@ -44,7 +44,6 @@ export async function switchWorkspace(id) {
 export async function createWorkspace(name) {
   const res  = await apiFetch('/api/workspaces', {
     method: 'POST',
-    forceProd: true,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   });
