@@ -83,6 +83,33 @@ async function subscribe(planKey) {
   }
 }
 
+async function changePlan(planKey) {
+  if (!confirm(`Passer au plan ${planKey} ?`)) return;
+  checkoutLoading.value = planKey;
+  try {
+    const r = await apiFetch('/api/billing/change-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        planKey,
+        successUrl: window.location.origin + '/billing?success=1',
+        cancelUrl:  window.location.origin + '/billing',
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok) { alert(d.error ?? 'Erreur'); return; }
+    if (d.url && d.url !== window.location.origin + '/billing?success=1') {
+      window.location.href = d.url;
+    } else {
+      await loadSubscription();
+    }
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    checkoutLoading.value = '';
+  }
+}
+
 async function openPortal() {
   portalLoading.value = true;
   try {
@@ -128,15 +155,24 @@ function statusBadge(s) {
   return STATUS_LABELS[s] ?? { label: s, cls: 'bg-gray-100 text-gray-500' };
 }
 
-const PLAN_ORDER = ['starter', 'pro', 'enterprise'];
-const currentPlanKey = computed(() => subscription.value?.planKey ?? null);
+const currentPlanKey = computed(() => subscription.value?.plan ?? null);
 
-const PLAN_PRICES = { starter: '29 €', pro: '99 €', enterprise: '299 €' };
-const PLAN_FEATURES = {
-  starter:    ['500 sièges / mois', 'Support email', '1 workspace'],
-  pro:        ['2 000 sièges / mois', 'Support prioritaire', '5 workspaces', 'Analytics'],
-  enterprise: ['10 000 sièges / mois', 'Support dédié', 'Workspaces illimités', 'SLA 99.9 %'],
+const PLAN_META = {
+  mora:  { features: ['2 500 sièges / an inclus', 'Surplus : 0,15 € / siège', 'Facturation annuelle'] },
+  soa:   { features: ['5 000 sièges / an inclus', 'Surplus : 0,15 € / siège', 'Facturation annuelle', 'Support prioritaire'] },
+  tsena: { features: ['Sans abonnement fixe', '0,20 € / siège utilisé', 'Facturation mensuelle', 'Idéal pour les événements ponctuels'] },
 };
+
+const planList = computed(() =>
+  Object.entries(plans.value).map(([key, p]) => ({
+    key,
+    label:    p.label,
+    quota:    p.annual_seat_quota,
+    payPerUse: p.pay_per_use,
+    features: PLAN_META[key]?.features ?? [],
+    isCurrent: key === currentPlanKey.value,
+  }))
+);
 </script>
 
 <template>
@@ -290,26 +326,29 @@ const PLAN_FEATURES = {
         <div v-if="subLoading" v-for="i in 3" :key="i"
           class="bg-white rounded-2xl border border-gray-200 p-6 animate-pulse h-64" />
 
-        <div v-else v-for="planKey in PLAN_ORDER" :key="planKey"
+        <div v-else v-for="plan in planList" :key="plan.key"
           class="bg-white rounded-2xl border-2 p-6 flex flex-col transition"
-          :class="currentPlanKey === planKey
+          :class="plan.isCurrent
             ? 'border-indigo-500 shadow-md shadow-indigo-100'
             : 'border-gray-200 hover:border-gray-300'">
 
           <!-- Plan header -->
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-base font-bold text-gray-900 capitalize">{{ plans[planKey]?.label ?? planKey }}</span>
-            <span v-if="currentPlanKey === planKey"
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-base font-bold text-gray-900">{{ plan.label }}</span>
+            <span v-if="plan.isCurrent"
               class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">
               Plan actuel
             </span>
           </div>
-          <p class="text-2xl font-extrabold text-gray-900 mb-1">{{ PLAN_PRICES[planKey] }} <span class="text-sm font-normal text-gray-400">/ mois</span></p>
-          <p class="text-xs text-gray-500 mb-4">{{ (plans[planKey]?.seats ?? 0).toLocaleString('fr-FR') }} sièges inclus</p>
+
+          <p class="text-xs text-gray-500 mb-4">
+            <span v-if="plan.payPerUse">Facturation à la séance</span>
+            <span v-else>{{ plan.quota.toLocaleString('fr-FR') }} sièges / an inclus</span>
+          </p>
 
           <!-- Features -->
           <ul class="flex-1 space-y-2 mb-6">
-            <li v-for="f in PLAN_FEATURES[planKey]" :key="f"
+            <li v-for="f in plan.features" :key="f"
               class="flex items-center gap-2 text-sm text-gray-600">
               <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
@@ -320,17 +359,17 @@ const PLAN_FEATURES = {
 
           <!-- CTA -->
           <button
-            @click="subscribe(planKey)"
-            :disabled="currentPlanKey === planKey || checkoutLoading === planKey"
+            @click="subscription ? changePlan(plan.key) : subscribe(plan.key)"
+            :disabled="plan.isCurrent || checkoutLoading === plan.key"
             class="w-full py-2.5 rounded-xl text-sm font-semibold transition"
-            :class="currentPlanKey === planKey
+            :class="plan.isCurrent
               ? 'bg-indigo-50 text-indigo-400 cursor-default'
               : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-60'"
           >
-            <span v-if="checkoutLoading === planKey">Chargement…</span>
-            <span v-else-if="currentPlanKey === planKey">Plan actuel</span>
+            <span v-if="checkoutLoading === plan.key">Chargement…</span>
+            <span v-else-if="plan.isCurrent">Plan actuel</span>
             <span v-else-if="!subscription">Commencer</span>
-            <span v-else>Passer à ce plan</span>
+            <span v-else>Activer ce plan</span>
           </button>
         </div>
       </div>
