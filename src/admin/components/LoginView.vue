@@ -47,8 +47,9 @@ onMounted(() => {
     localStorage.setItem('pendingPlan', route.query.plan);
   }
 
-  // Email vérifié avec succès
+  // Email vérifié avec succès — forcer la déconnexion de la session courante
   if (route.query.verified === '1') {
+    auth.clear();
     message.value = 'Email vérifié ✓ Vous pouvez maintenant vous connecter.';
     const stored = localStorage.getItem('pendingPlan');
     if (stored) pendingPlan.value = stored;

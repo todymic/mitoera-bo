@@ -47,7 +47,8 @@ router.beforeEach((to) => {
   if (!to.meta.public && !auth.isLoggedIn()) {
     return { name: 'login' };
   }
-  if (to.name === 'login' && auth.isLoggedIn()) {
+  // Ne pas rediriger vers home si on arrive avec ?verified=1 (flow email verification)
+  if (to.name === 'login' && auth.isLoggedIn() && !to.query.verified) {
     return { name: 'home' };
   }
 });
