@@ -1,12 +1,16 @@
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { auth } from '../services/auth.js';
 
 const router = useRouter();
+const route  = useRoute();
 
 // 'login' | 'register' | 'forgot' | 'reset'
 const mode = ref('login');
+
+// Plan choisi depuis la page pricing (mora | soa | tsena)
+const pendingPlan = ref(null);
 
 // Login
 const loginEmail    = ref('');
@@ -31,6 +35,31 @@ const error   = ref('');
 const loading = ref(false);
 const showPassword = ref(false);
 
+const PLAN_LABELS = { mora: 'Mora', soa: 'Soa', tsena: 'Tsena' };
+
+onMounted(() => {
+  // Lire le mode depuis l'URL (?mode=register)
+  if (route.query.mode === 'register') mode.value = 'register';
+
+  // Plan choisi depuis la page pricing
+  if (route.query.plan) {
+    pendingPlan.value = route.query.plan;
+    localStorage.setItem('pendingPlan', route.query.plan);
+  }
+
+  // Email vérifié avec succès
+  if (route.query.verified === '1') {
+    message.value = 'Email vérifié ✓ Vous pouvez maintenant vous connecter.';
+    const stored = localStorage.getItem('pendingPlan');
+    if (stored) pendingPlan.value = stored;
+  }
+
+  // Erreur de vérification
+  if (route.query.error) {
+    error.value = decodeURIComponent(route.query.error);
+  }
+});
+
 function clearMessages() { error.value = ''; message.value = ''; }
 
 async function submitLogin() {
@@ -38,6 +67,24 @@ async function submitLogin() {
   loading.value = true;
   try {
     await auth.login(loginEmail.value, loginPassword.value);
+
+    // Si un plan est en attente, lancer le checkout
+    const plan = pendingPlan.value || localStorage.getItem('pendingPlan');
+    if (plan) {
+      localStorage.removeItem('pendingPlan');
+      const res = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token()}` },
+        body: JSON.stringify({
+          planKey:    plan,
+          successUrl: window.location.origin + '/billing?success=1',
+          cancelUrl:  window.location.origin + '/billing',
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.url) { window.location.href = data.url; return; }
+    }
+
     router.push({ name: 'home' });
   } catch (e) {
     error.value = e.message;
@@ -61,7 +108,15 @@ async function submitRegister() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? 'Erreur lors de l\'inscription');
-    message.value = 'Compte créé avec succès ! Vous pouvez vous connecter.';
+
+    // Envoyer l'email de vérification
+    await fetch('/api/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: regEmail.value }),
+    });
+
+    message.value = `Compte créé ! Un email de vérification a été envoyé à ${regEmail.value}. Vérifiez votre boîte mail avant de vous connecter.`;
     mode.value = 'login';
     loginEmail.value = regEmail.value;
   } catch (e) {
@@ -136,10 +191,57 @@ function go(m) { clearMessages(); mode.value = m; }
         <span class="text-2xl font-bold text-gray-900 tracking-tight">Mitoera</span>
       </div>
 
+      <!-- Register -->
+      <template v-if="mode === 'register'">
+        <h1 class="text-xl font-bold text-gray-800 mb-1 text-center">Créer un compte</h1>
+        <p v-if="pendingPlan" class="text-xs text-center mb-4 px-3 py-2 rounded-lg bg-orange-50 text-orange-700 font-medium">
+          Plan sélectionné : <strong>{{ PLAN_LABELS[pendingPlan] ?? pendingPlan }}</strong> — vous serez redirigé vers le paiement après connexion.
+        </p>
+        <p v-else class="text-xs text-gray-400 mb-6 text-center">Créez votre compte Mitoera</p>
+
+        <p v-if="message" class="text-xs text-green-600 mb-4 bg-green-50 p-2 rounded-lg">{{ message }}</p>
+        <p v-if="error"   class="text-xs text-red-500 mb-4 bg-red-50 p-2 rounded-lg">{{ error }}</p>
+
+        <div class="flex gap-3 mb-3">
+          <div class="flex-1">
+            <label class="text-sm font-semibold text-gray-500">Prénom</label>
+            <input v-model="firstName" type="text" placeholder="Jean"
+              class="w-full mt-1 px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:border-gray-400" />
+          </div>
+          <div class="flex-1">
+            <label class="text-sm font-semibold text-gray-500">Nom</label>
+            <input v-model="lastName" type="text" placeholder="Dupont"
+              class="w-full mt-1 px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:border-gray-400" />
+          </div>
+        </div>
+
+        <label class="text-sm font-semibold text-gray-500">Email</label>
+        <input v-model="regEmail" type="email" placeholder="jean@example.com"
+          class="w-full mt-1 mb-3 px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:border-gray-400" />
+
+        <label class="text-sm font-semibold text-gray-500">Mot de passe</label>
+        <input v-model="regPassword" type="password" placeholder="8 caractères minimum" @keyup.enter="submitRegister"
+          class="w-full mt-1 mb-5 px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:border-gray-400" />
+
+        <button :disabled="loading" @click="submitRegister"
+          class="w-full py-3 rounded-lg text-white text-base font-semibold disabled:opacity-50"
+          style="background:#E8713A">
+          {{ loading ? 'Création…' : 'Créer mon compte' }}
+        </button>
+
+        <p class="text-xs text-center text-gray-400 mt-4">
+          Déjà un compte ?
+          <button @click="go('login')" class="text-indigo-500 hover:underline font-medium">Se connecter</button>
+        </p>
+      </template>
+
       <!-- Login -->
-      <template v-if="mode === 'login'">
+      <template v-else-if="mode === 'login'">
         <h1 class="text-xl font-bold text-gray-800 mb-1 text-center">Connexion</h1>
-        <p class="text-xs text-gray-400 mb-6 text-center">Connectez-vous pour gérer les plans</p>
+        <p v-if="pendingPlan" class="text-xs text-center mb-4 px-3 py-2 rounded-lg bg-orange-50 text-orange-700 font-medium">
+          Plan <strong>{{ PLAN_LABELS[pendingPlan] ?? pendingPlan }}</strong> sélectionné — connectez-vous pour activer.
+        </p>
+        <p v-else class="text-xs text-gray-400 mb-6 text-center">Connectez-vous pour gérer les plans</p>
 
         <p v-if="message" class="text-xs text-green-600 mb-4 bg-green-50 p-2 rounded-lg">{{ message }}</p>
         <p v-if="error"   class="text-xs text-red-500 mb-4 bg-red-50 p-2 rounded-lg">{{ error }}</p>
@@ -173,6 +275,11 @@ function go(m) { clearMessages(); mode.value = m; }
           style="background:#E8713A">
           {{ loading ? 'Connexion…' : 'Se connecter' }}
         </button>
+
+        <p class="text-xs text-center text-gray-400 mt-4">
+          Pas encore de compte ?
+          <button @click="go('register')" class="text-indigo-500 hover:underline font-medium">Créer un compte</button>
+        </p>
 
       </template>
 
