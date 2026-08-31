@@ -33,6 +33,8 @@ export const auth = {
 
   clear() {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(MODE_KEY);
+    apiMode.value = 'prod';
     auth.loggedIn.value = false;
   },
 
