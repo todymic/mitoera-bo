@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { auth } from './services/auth.js';
+import { auth, apiMode } from './services/auth.js';
+
+const SANDBOX_FORBIDDEN = ['usage', 'billing', 'team'];
 
 // Lazy-loaded views
 const PlansView    = () => import('./views/PlansView.vue');
@@ -49,6 +51,10 @@ router.beforeEach((to) => {
   }
   // Ne pas rediriger vers home si on arrive avec ?verified=1 (flow email verification)
   if (to.name === 'login' && auth.isLoggedIn() && !to.query.verified) {
+    return { name: 'home' };
+  }
+  // Billing, Usage, Équipe ne sont pas disponibles en sandbox
+  if (apiMode.value === 'sandbox' && SANDBOX_FORBIDDEN.includes(to.name)) {
     return { name: 'home' };
   }
 });

@@ -10,9 +10,8 @@ export async function loadWorkspaces(retries = 5) {
     const res = await apiFetch('/api/workspaces');
     const list = await res.json();
 
-    // En sandbox, si l'utilisateur n'a pas encore de workspace → créer "Sandbox" automatiquement
     if (list.length === 0) {
-      await createWorkspace('Sandbox');
+      await createWorkspace('locale');
       return;
     }
 
