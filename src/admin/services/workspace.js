@@ -9,14 +9,17 @@ export async function loadWorkspaces(retries = 5) {
   try {
     const res = await apiFetch('/api/workspaces');
     const list = await res.json();
+
+    // En sandbox, si l'utilisateur n'a pas encore de workspace → créer "Sandbox" automatiquement
+    if (list.length === 0) {
+      await createWorkspace('Sandbox');
+      return;
+    }
+
     workspaces.value = list;
     const current = list.find(w => w.current) ?? list[0] ?? null;
     workspace.value = current;
 
-    // JWT sans workspaceId (ancien token) — auto-switch sur le premier workspace
-    // pour obtenir un JWT enrichi sans forcer une déconnexion manuelle.
-    // Erreur isolée : si le switch échoue (ex: 502 pendant restart container),
-    // on conserve workspace.value = current déjà positionné ci-dessus.
     if (current && !list.find(w => w.current)) {
       try {
         await switchWorkspace(current.id);
@@ -24,10 +27,14 @@ export async function loadWorkspaces(retries = 5) {
         // switch failed — workspace reste visible, sera corrigé au prochain rechargement
       }
     }
-  } catch {
+  } catch (e) {
+    // SANDBOX_UNAVAILABLE : on vient de basculer en prod, recharger avec le bon mode
+    if (e.message === 'SANDBOX_UNAVAILABLE') {
+      await loadWorkspaces(retries);
+      return;
+    }
     workspaces.value = [];
     workspace.value  = null;
-    // Retry si échec temporaire (ex: container qui redémarre après deploy)
     if (retries > 0) {
       setTimeout(() => loadWorkspaces(retries - 1), 8000);
     }

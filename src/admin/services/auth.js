@@ -105,10 +105,15 @@ export async function apiFetch(path, options = {}) {
   const res = await fetch(url, { ...options, headers });
 
   if (res.status === 401) {
-    if (!_embedApiKey) {
-      auth.clear();
-      window.location.href = '/admin/login';
+    if (_embedApiKey) throw new Error('SESSION_EXPIRED');
+    // En mode sandbox, un 401 signifie que l'utilisateur n'existe pas dans la DB sandbox
+    // → on repasse en prod sans déconnecter la session courante
+    if (apiMode.value === 'sandbox') {
+      switchMode('prod');
+      throw new Error('SANDBOX_UNAVAILABLE');
     }
+    auth.clear();
+    window.location.href = '/admin/login';
     throw new Error('SESSION_EXPIRED');
   }
 
