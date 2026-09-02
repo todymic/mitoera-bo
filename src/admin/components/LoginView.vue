@@ -41,6 +41,12 @@ onMounted(() => {
   // Lire le mode depuis l'URL (?mode=register)
   if (route.query.mode === 'register') mode.value = 'register';
 
+  // Lien de réinitialisation depuis l'email (?token=xxx)
+  if (route.query.token) {
+    resetToken.value = route.query.token;
+    mode.value = 'reset';
+  }
+
   // Plan choisi depuis la page pricing
   if (route.query.plan) {
     pendingPlan.value = route.query.plan;
