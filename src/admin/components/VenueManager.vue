@@ -11,6 +11,7 @@ const formOpen = ref(false);
 const editing = ref(null);
 const form = ref({ name: '', description: '' });
 const saving = ref(false);
+const deleteError = ref('');
 
 async function load() {
   loading.value = true;
@@ -46,11 +47,16 @@ async function save() {
 }
 
 async function remove(v) {
+  deleteError.value = '';
   if (!confirm(`Supprimer la salle "${v.name}" et tout son plan (zones, catégories, rangées) ?`)) return;
-  await adminApi.deleteVenue(v.id);
-  await load();
-  if (props.selectedId === v.id) {
-    emit('select', venues.value[0]?.id ?? null);
+  try {
+    await adminApi.deleteVenue(v.id);
+    await load();
+    if (props.selectedId === v.id) {
+      emit('select', venues.value[0]?.id ?? null);
+    }
+  } catch (e) {
+    deleteError.value = e.message;
   }
 }
 </script>
@@ -62,6 +68,10 @@ async function remove(v) {
       <button @click="openCreate" class="text-xs font-semibold bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700">
         + Nouvelle salle
       </button>
+    </div>
+
+    <div v-if="deleteError" class="mb-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+      {{ deleteError }}
     </div>
 
     <div v-if="loading" class="text-sm text-gray-400 py-6 text-center">Chargement…</div>

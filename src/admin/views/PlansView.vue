@@ -67,8 +67,12 @@ async function updatePlanStatus(plan, status) {
 
 async function deletePlan(plan) {
   if (!confirm(`Supprimer le plan "${plan.name}" ?`)) return;
-  await adminApi.deleteVenue(plan.id);
-  await loadPlans();
+  try {
+    await adminApi.deleteVenue(plan.id);
+    await loadPlans();
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 
 function startRename(plan) { editingPlan.value = plan; editingName.value = plan.name; }
