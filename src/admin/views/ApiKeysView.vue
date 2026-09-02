@@ -7,7 +7,8 @@ const loading    = ref(false);
 const rotating   = ref(null);
 const revoking   = ref(null);
 const copied     = ref('');
-const newSecret  = ref(null);
+const newSecret     = ref(null);
+const showSecret    = ref(false);
 
 const publicKey  = computed(() => keys.value.find(k => k.scope === 'public'     && k.active) ?? null);
 const secretKey  = computed(() => keys.value.find(k => k.scope === 'backoffice' && k.active) ?? null);
@@ -51,6 +52,7 @@ async function load() {
 async function rotate(scope) {
   rotating.value = scope;
   newSecret.value = null;
+  showSecret.value = false;
   try {
     const existing = keys.value.find(k => k.scope === scope && k.active);
     if (existing) await adminApi.deleteApiKey(existing.id);
@@ -101,7 +103,7 @@ onMounted(async () => {
         </button>
       </div>
       <p v-if="newSecret.scope === 'backoffice'" class="text-xs text-amber-700 mt-2">Utilisez ce string complet comme <code class="bg-amber-100 px-1 rounded">secretKey</code> dans le SDK éditeur.</p>
-      <button @click="newSecret = null" class="mt-2 text-xs text-amber-600 underline">Compris</button>
+      <button @click="newSecret = null; showSecret = false" class="mt-2 text-xs text-amber-600 underline">Compris</button>
     </div>
 
     <div v-if="loading" class="text-sm text-gray-400">Chargement…</div>
@@ -132,7 +134,23 @@ onMounted(async () => {
         <div>
           <p class="text-xs text-gray-500 mb-1">Secret</p>
           <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-3">
-            <code class="flex-1 text-sm font-mono text-gray-400">••••••••••••••••••••••••</code>
+            <code class="flex-1 text-sm font-mono break-all" :class="showSecret && newSecret ? 'text-gray-700' : 'text-gray-400'">
+              {{ showSecret && newSecret ? newSecret.secret : '••••••••••••••••••••••••' }}
+            </code>
+            <!-- Toggle œil — actif seulement si le secret vient d'être généré -->
+            <button
+              v-if="newSecret"
+              @click="showSecret = !showSecret"
+              :title="showSecret ? 'Masquer' : 'Afficher le secret'"
+              class="text-gray-400 hover:text-gray-700 shrink-0 p-1 rounded hover:bg-gray-100">
+              <svg v-if="!showSecret" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+              </svg>
+            </button>
             <button @click="rotate('backoffice')" :disabled="rotating === 'backoffice' || revoking === 'backoffice'" title="Régénérer"
               class="text-gray-400 hover:text-gray-700 shrink-0 p-1 rounded hover:bg-gray-100 disabled:opacity-40"
               :class="{ 'animate-spin': rotating === 'backoffice' }">
