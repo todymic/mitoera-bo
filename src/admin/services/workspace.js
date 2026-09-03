@@ -30,14 +30,20 @@ export async function loadWorkspaces(retries = 5) {
     }
 
     workspaces.value = list;
-    const explicitCurrent = list.find(w => w.current);
 
-    if (!explicitCurrent && list.length > 0) {
-      // Aucun workspace courant — on tente de retrouver celui du mode précédent
-      // (mémorisé avant le reload) pour rester sur le bon workspace après switch.
-      const pendingName = localStorage.getItem('mitoera_pending_workspace_name');
+    // Après un switch de mode (prod↔sandbox), on veut FORCER le workspace du
+    // même nom — même si le nouveau mode a déjà un workspace "current" différent.
+    const pendingName = localStorage.getItem('mitoera_pending_workspace_name');
+    if (pendingName) {
       localStorage.removeItem('mitoera_pending_workspace_name');
-      const target = (pendingName && list.find(w => w.name === pendingName)) ?? list[0];
+      const target = list.find(w => w.name === pendingName) ?? list[0];
+      const alreadyOnTarget = target && list.find(w => w.current)?.id === target.id;
+
+      if (alreadyOnTarget) {
+        workspace.value = target;
+        markReady();
+        return;
+      }
 
       workspace.value = null;
       try {
@@ -50,8 +56,18 @@ export async function loadWorkspaces(retries = 5) {
       return;
     }
 
-    // Workspace déjà marqué courant — nettoyer au cas où
-    localStorage.removeItem('mitoera_pending_workspace_name');
+    const explicitCurrent = list.find(w => w.current);
+    if (!explicitCurrent && list.length > 0) {
+      workspace.value = null;
+      try {
+        await switchWorkspace(list[0].id);
+      } catch {
+        workspace.value = list[0];
+        markReady();
+      }
+      return;
+    }
+
     workspace.value = explicitCurrent ?? null;
     markReady();
   } catch (e) {
