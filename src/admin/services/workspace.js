@@ -31,20 +31,15 @@ export async function loadWorkspaces(retries = 5) {
 
     workspaces.value = list;
 
-    // Après un switch de mode (prod↔sandbox), on veut FORCER le workspace du
-    // même nom — même si le nouveau mode a déjà un workspace "current" différent.
+    // Après un switch de mode (prod↔sandbox), on force TOUJOURS un appel
+    // switchWorkspace pour obtenir un token valide dans le nouveau mode —
+    // même si le workspace cible est déjà marqué current dans la DB.
+    // Sans ça, le token JWT du mode précédent reste actif : le serveur ne
+    // trouve pas le workspaceId dans la nouvelle DB et retourne tous les events.
     const pendingName = localStorage.getItem('mitoera_pending_workspace_name');
     if (pendingName) {
       localStorage.removeItem('mitoera_pending_workspace_name');
       const target = list.find(w => w.name === pendingName) ?? list[0];
-      const alreadyOnTarget = target && list.find(w => w.current)?.id === target.id;
-
-      if (alreadyOnTarget) {
-        workspace.value = target;
-        markReady();
-        return;
-      }
-
       workspace.value = null;
       try {
         await switchWorkspace(target.id);
