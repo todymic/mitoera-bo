@@ -65,15 +65,15 @@ function seatBg(seatKey, categoryId, planStatus) {
   switch (seatVisualState(seatKey, planStatus)) {
     case 'disabled':        return '#eef0f2';
     case 'deleted':         return 'transparent';
-    case 'sel-to-booked':   return 'transparent';   // creux
-    case 'sel-to-available':return color;            // plein vif
-    case 'sel-to-canceled': return color;            // plein vif + croix
+    case 'sel-to-booked':   return 'transparent';
+    case 'sel-to-available':return color;
+    case 'sel-to-canceled': return color;
     case 'sel-default':     return '#6366f1';
-    case 'available':       return color + '35';     // couleur claire
-    case 'booked':          return color;            // couleur vive
-    case 'canceled':        return '#f3f4f6';        // gris clair
-    case 'hold':            return '#fef3c7';
-    default:                return color + '35';
+    case 'available':       return color + '40';  // tinte catégorie bien visible
+    case 'booked':          return color;          // couleur vive pleine
+    case 'canceled':        return '#e8eaed';      // gris doux hors-vente
+    case 'hold':            return color + '18';   // très soft, à peine visible
+    default:                return color + '40';
   }
 }
 
@@ -82,14 +82,14 @@ function seatFg(seatKey, categoryId, planStatus) {
   switch (seatVisualState(seatKey, planStatus)) {
     case 'disabled':        return '#9ca3af';
     case 'deleted':         return 'transparent';
-    case 'sel-to-booked':   return color;   // texte couleur catégorie sur fond transparent
+    case 'sel-to-booked':   return color;
     case 'sel-to-available':return '#fff';
     case 'sel-to-canceled': return '#fff';
     case 'sel-default':     return '#fff';
-    case 'available':       return color;   // texte couleur catégorie sur fond clair
-    case 'booked':          return '#fff';
-    case 'canceled':        return '#9ca3af';
-    case 'hold':            return '#d97706';
+    case 'available':       return color;    // texte couleur catégorie sur fond clair
+    case 'booked':          return '#fff';   // blanc sur fond vif
+    case 'canceled':        return '#b8bcc4'; // gris très atténué
+    case 'hold':            return color + 'aa'; // catégorie atténuée sur fond très soft
     default:                return color;
   }
 }
@@ -103,6 +103,7 @@ function seatBorderStyle(seatKey, planStatus, categoryId) {
     case 'sel-to-available': return { border: `2.5px solid ${color}`, boxShadow: `0 0 0 3px ${color}44` };
     case 'sel-to-canceled':  return { border: `2.5px solid ${color}`, boxShadow: `0 0 0 3px ${color}44` };
     case 'sel-default':      return { border: `2.5px solid #fff`, boxShadow: `0 0 0 3px #6366f1` };
+    case 'booked':           return { boxShadow: `0 1px 4px ${color}88, inset 0 1px 0 #ffffff33` };
     default:                 return {};
   }
 }
@@ -353,14 +354,17 @@ watch([() => props.seatRows, () => props.zones, () => props.tableSections, () =>
       <!-- Legend (masquée en mode catégories) -->
       <div v-if="context !== 'categories'" class="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
         <span class="flex items-center gap-1">
-          <span class="w-3 h-3 rounded-full inline-block" style="background:#a78bfa55"></span>Libre
+          <span class="w-3 h-3 rounded-full inline-block border border-gray-300" style="background:#6b7280;opacity:0.25"></span>Libre
         </span>
         <span class="flex items-center gap-1">
-          <span class="w-3 h-3 rounded-full inline-block" style="background:#a78bfa"></span>Vendu
+          <span class="w-3 h-3 rounded-full inline-block" style="background:#6b7280;opacity:0.1;border:1px solid #6b728066"></span>En attente
+        </span>
+        <span class="flex items-center gap-1">
+          <span class="w-3 h-3 rounded-full inline-block" style="background:#4f46e5"></span>Réservé
         </span>
         <span class="flex items-center gap-1 relative">
-          <span class="w-3 h-3 rounded-full inline-block relative" style="background:#f3f4f6">
-            <svg viewBox="0 0 10 10" fill="none" class="absolute inset-0 w-full h-full"><line x1="2" y1="2" x2="8" y2="8" stroke="#a78bfa" stroke-width="2.2" stroke-linecap="round"/><line x1="8" y1="2" x2="2" y2="8" stroke="#a78bfa" stroke-width="2.2" stroke-linecap="round"/></svg>
+          <span class="w-3 h-3 rounded-full inline-block relative" style="background:#e8eaed">
+            <svg viewBox="0 0 10 10" fill="none" class="absolute inset-0 w-full h-full"><line x1="2" y1="2" x2="8" y2="8" stroke="#b8bcc4" stroke-width="2.2" stroke-linecap="round"/><line x1="8" y1="2" x2="2" y2="8" stroke="#b8bcc4" stroke-width="2.2" stroke-linecap="round"/></svg>
           </span>Hors vente
         </span>
       </div>
