@@ -5,6 +5,17 @@ export const workspaces = ref([]);        // tous les workspaces de l'utilisateu
 export const workspace  = ref(null);      // workspace actif (current: true)
 export const sandboxUnavailable = ref(false);
 
+// Resolve quand le workspace initial est confirmé (token correct en place).
+// Les vues de données (EventManager, etc.) doivent await cette promesse
+// avant de charger pour éviter de recevoir des données du mauvais workspace.
+let _readyResolve;
+export const workspaceReady = new Promise((r) => { _readyResolve = r; });
+
+function markReady() {
+  _readyResolve?.();
+  _readyResolve = null; // idempotent
+}
+
 export async function loadWorkspaces(retries = 5) {
   if (!auth.isLoggedIn()) return;
   try {
@@ -14,33 +25,44 @@ export async function loadWorkspaces(retries = 5) {
 
     if (list.length === 0) {
       await createWorkspace('locale');
+      markReady();
       return;
     }
 
     workspaces.value = list;
     const explicitCurrent = list.find(w => w.current);
-    workspace.value = explicitCurrent ?? null;
 
     if (!explicitCurrent && list.length > 0) {
+      // Aucun workspace courant — on switch vers le premier pour obtenir un
+      // token valide avant que les vues ne chargent leurs données.
+      workspace.value = null;
       try {
         await switchWorkspace(list[0].id);
-        // switchWorkspace → loadWorkspaces : workspace.value est mis à jour par la suite
-        return;
+        // switchWorkspace → loadWorkspaces appelle markReady() en fin de chaîne
       } catch {
         workspace.value = list[0];
+        markReady();
       }
+      return;
     }
+
+    workspace.value = explicitCurrent ?? null;
+    markReady();
   } catch (e) {
     if (e.message === 'SANDBOX_UNAVAILABLE') {
       sandboxUnavailable.value = true;
       workspaces.value = [];
       workspace.value  = null;
-      return;
-    }
-    workspaces.value = [];
-    workspace.value  = null;
-    if (retries > 0) {
-      setTimeout(() => loadWorkspaces(retries - 1), 8000);
+      markReady();
+    } else {
+      workspaces.value = [];
+      workspace.value  = null;
+      if (retries > 0) {
+        setTimeout(() => loadWorkspaces(retries - 1), 8000);
+        // workspaceReady reste en attente jusqu'au retry
+      } else {
+        markReady(); // abandon, on débloque quand même les vues
+      }
     }
   }
 }

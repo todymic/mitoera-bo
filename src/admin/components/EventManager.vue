@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
 import { adminApi } from '../services/adminApi.js';
+import { workspaceReady } from '../services/workspace.js';
 import { computeSeatLabel, computeAxisLabel } from '../../services/seatLabel';
 import EventPlanView from './EventPlanView.vue';
 import PlanThumbnail from './PlanThumbnail.vue';
@@ -55,7 +56,9 @@ async function load() {
   } catch (e) { error.value = e.message; }
   finally { loading.value = false; }
 }
-onMounted(load);
+// Attend que le workspace (et son token) soit confirmé avant de charger les
+// events — évite de recevoir des events d'un autre workspace au switch de mode.
+onMounted(() => workspaceReady.then(load));
 
 // ---- CRUD ----
 async function createEvent() {
