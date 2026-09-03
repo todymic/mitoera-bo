@@ -1,12 +1,14 @@
 import { ref } from 'vue';
-import { apiFetch, auth } from './auth.js';
+import { apiFetch, auth, switchMode } from './auth.js';
 
-export const workspaces = ref([]);   // tous les workspaces de l'utilisateur
-export const workspace  = ref(null); // workspace actif (current: true)
+export const workspaces = ref([]);        // tous les workspaces de l'utilisateur
+export const workspace  = ref(null);      // workspace actif (current: true)
+export const sandboxUnavailable = ref(false);
 
 export async function loadWorkspaces(retries = 5) {
   if (!auth.isLoggedIn()) return;
   try {
+    sandboxUnavailable.value = false;
     const res = await apiFetch('/api/workspaces');
     const list = await res.json();
 
@@ -27,9 +29,10 @@ export async function loadWorkspaces(retries = 5) {
       }
     }
   } catch (e) {
-    // SANDBOX_UNAVAILABLE : on vient de basculer en prod, recharger avec le bon mode
     if (e.message === 'SANDBOX_UNAVAILABLE') {
-      await loadWorkspaces(retries);
+      sandboxUnavailable.value = true;
+      workspaces.value = [];
+      workspace.value  = null;
       return;
     }
     workspaces.value = [];
