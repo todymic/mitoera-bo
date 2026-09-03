@@ -18,14 +18,16 @@ export async function loadWorkspaces(retries = 5) {
     }
 
     workspaces.value = list;
-    const current = list.find(w => w.current) ?? list[0] ?? null;
-    workspace.value = current;
+    const explicitCurrent = list.find(w => w.current);
+    workspace.value = explicitCurrent ?? null;
 
-    if (current && !list.find(w => w.current)) {
+    if (!explicitCurrent && list.length > 0) {
       try {
-        await switchWorkspace(current.id);
+        await switchWorkspace(list[0].id);
+        // switchWorkspace → loadWorkspaces : workspace.value est mis à jour par la suite
+        return;
       } catch {
-        // switch failed — workspace reste visible, sera corrigé au prochain rechargement
+        workspace.value = list[0];
       }
     }
   } catch (e) {
