@@ -2,7 +2,7 @@
 import { computed, onMounted, watch, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { auth, apiMode, switchMode } from './services/auth.js';
-import { workspace, workspaces, loadWorkspaces, switchWorkspace, createWorkspace } from './services/workspace.js';
+import { workspace, workspaces, loadWorkspaces, switchWorkspace, createWorkspace, sandboxUnavailable } from './services/workspace.js';
 import { activePlanId, activePlanDirty, activePlanStatus } from './services/activePlan.js';
 import { adminApi } from './services/adminApi.js';
 
@@ -52,10 +52,12 @@ async function doSwitch(id) {
 
   await switchWorkspace(id);
   switcherOpen.value = false;
-  // Retourner à la liste des plans si on était dans l'éditeur
-  // (le plan appartient à l'ancien workspace)
+  // Les ressources (plans, événements) appartiennent à l'ancien workspace :
+  // rediriger vers la liste correspondante plutôt que de recharger la même URL.
   if (route.name === 'plan-editor') {
     window.location.href = '/plans';
+  } else if (route.name === 'event-detail') {
+    window.location.href = '/events';
   } else {
     window.location.reload();
   }
@@ -292,6 +294,10 @@ const navItems = computed(() =>
 
       <!-- Main content -->
       <main class="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <div v-if="sandboxUnavailable" class="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center justify-between gap-3 text-sm">
+          <span class="text-amber-800">⚠️ Votre compte n'est pas encore synchronisé en mode Sandbox. Repassez en production pour continuer.</span>
+          <button @click="switchMode('prod')" class="text-xs font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-700">Repasser en Production</button>
+        </div>
         <RouterView />
       </main>
 
