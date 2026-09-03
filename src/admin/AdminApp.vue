@@ -29,7 +29,7 @@ const currentUser = computed(() => {
   } catch { return null; }
 });
 const isSandbox = computed(() => apiMode.value === 'sandbox');
-function toggleMode() { switchMode(isSandbox.value ? 'prod' : 'sandbox'); }
+function toggleMode() { switchMode(isSandbox.value ? 'prod' : 'sandbox', workspace.value?.name ?? null); }
 
 onMounted(() => { if (auth.isLoggedIn()) loadWorkspaces(); });
 watch(isLoggedIn, (v) => { if (v) loadWorkspaces(); });

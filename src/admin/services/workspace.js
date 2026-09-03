@@ -33,19 +33,25 @@ export async function loadWorkspaces(retries = 5) {
     const explicitCurrent = list.find(w => w.current);
 
     if (!explicitCurrent && list.length > 0) {
-      // Aucun workspace courant — on switch vers le premier pour obtenir un
-      // token valide avant que les vues ne chargent leurs données.
+      // Aucun workspace courant — on tente de retrouver celui du mode précédent
+      // (mémorisé avant le reload) pour rester sur le bon workspace après switch.
+      const pendingName = localStorage.getItem('mitoera_pending_workspace_name');
+      localStorage.removeItem('mitoera_pending_workspace_name');
+      const target = (pendingName && list.find(w => w.name === pendingName)) ?? list[0];
+
       workspace.value = null;
       try {
-        await switchWorkspace(list[0].id);
+        await switchWorkspace(target.id);
         // switchWorkspace → loadWorkspaces appelle markReady() en fin de chaîne
       } catch {
-        workspace.value = list[0];
+        workspace.value = target;
         markReady();
       }
       return;
     }
 
+    // Workspace déjà marqué courant — nettoyer au cas où
+    localStorage.removeItem('mitoera_pending_workspace_name');
     workspace.value = explicitCurrent ?? null;
     markReady();
   } catch (e) {

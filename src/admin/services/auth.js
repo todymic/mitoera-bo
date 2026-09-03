@@ -69,9 +69,12 @@ export function getApiBase() {
   return '/api';
 }
 
-export function switchMode(mode) {
+export function switchMode(mode, currentWorkspaceName = null) {
   if (apiMode.value === mode) return;
   localStorage.setItem(MODE_KEY, mode);
+  if (currentWorkspaceName) {
+    localStorage.setItem('mitoera_pending_workspace_name', currentWorkspaceName);
+  }
   apiMode.value = mode;
   window.location.reload();
 }
