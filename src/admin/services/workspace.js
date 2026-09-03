@@ -40,10 +40,10 @@ export async function loadWorkspaces(retries = 5) {
     if (pendingName) {
       localStorage.removeItem('mitoera_pending_workspace_name');
       const target = list.find(w => w.name === pendingName) ?? list[0];
-      workspace.value = null;
       try {
         await switchWorkspace(target.id);
-        // switchWorkspace → loadWorkspaces appelle markReady() en fin de chaîne
+        // Token du nouveau mode obtenu — recharge la page pour repartir proprement.
+        window.location.reload();
       } catch {
         workspace.value = target;
         markReady();
