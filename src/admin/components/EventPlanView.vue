@@ -69,8 +69,8 @@ function seatBg(seatKey, categoryId, planStatus) {
     case 'sel-to-available':return color;
     case 'sel-to-canceled': return color;
     case 'sel-default':     return '#6366f1';
-    case 'available':       return color;           // couleur catégorie pleine
-    case 'booked':          return color;          // couleur vive pleine
+    case 'available':       return color + '70';    // catégorie à ~44% — visible mais distinct
+    case 'booked':          return color;           // couleur vive pleine
     case 'canceled':        return '#e8eaed';      // gris doux hors-vente
     case 'hold':            return color + '88';   // couleur catégorie à 53% visible
     default:                return color + '40';
