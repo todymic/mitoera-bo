@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, watch, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { auth, apiMode, switchMode } from './services/auth.js';
+import { auth, apiMode, switchMode, apiFetch } from './services/auth.js';
 import { workspace, workspaces, loadWorkspaces, switchWorkspace, createWorkspace, sandboxUnavailable } from './services/workspace.js';
 import { activePlanId, activePlanDirty, activePlanStatus } from './services/activePlan.js';
 import { adminApi } from './services/adminApi.js';
@@ -31,8 +31,19 @@ const currentUser = computed(() => {
 const isSandbox = computed(() => apiMode.value === 'sandbox');
 function toggleMode() { switchMode(isSandbox.value ? 'prod' : 'sandbox', workspace.value?.name ?? null); }
 
-onMounted(() => { if (auth.isLoggedIn()) loadWorkspaces(); });
-watch(isLoggedIn, (v) => { if (v) loadWorkspaces(); });
+const subscription = ref(null);
+const subscriptionLoaded = ref(false);
+const hasPlan = computed(() => subscription.value !== null);
+
+async function loadSubscription() {
+  try {
+    const r = await apiFetch('/api/billing/subscription');
+    if (r.ok) { const d = await r.json(); subscription.value = d.subscription ?? null; }
+  } catch { /* ignore */ } finally { subscriptionLoaded.value = true; }
+}
+
+onMounted(() => { if (auth.isLoggedIn()) { loadWorkspaces(); loadSubscription(); } });
+watch(isLoggedIn, (v) => { if (v) { loadWorkspaces(); loadSubscription(); } });
 
 // Workspace switcher dropdown
 const switcherOpen   = ref(false);
@@ -297,6 +308,19 @@ const navItems = computed(() =>
         <div v-if="sandboxUnavailable" class="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center justify-between gap-3 text-sm">
           <span class="text-amber-800">⚠️ Votre compte n'est pas encore synchronisé en mode Sandbox. Repassez en production pour continuer.</span>
           <button @click="switchMode('prod')" class="text-xs font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-700">Repasser en Production</button>
+        </div>
+        <!-- Bannière plan manquant — visible sur toutes les pages sauf sandbox -->
+        <div v-if="subscriptionLoaded && !hasPlan && !isSandbox"
+          class="sticky top-0 z-20 flex items-center gap-3 bg-orange-500 px-5 py-2.5 shadow-sm shrink-0">
+          <svg class="w-4 h-4 text-white shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+          <p class="text-sm text-white flex-1 font-medium">
+            Aucun plan actif — les clés API en production sont désactivées.
+          </p>
+          <router-link to="/billing" class="text-xs font-bold bg-white text-orange-600 hover:bg-orange-50 px-3 py-1.5 rounded-lg transition shrink-0">
+            Choisir un plan →
+          </router-link>
         </div>
         <RouterView />
       </main>

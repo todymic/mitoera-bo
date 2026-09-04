@@ -107,22 +107,6 @@ onMounted(async () => {
 <template>
   <div class="flex flex-col h-full">
 
-    <!-- Bannière sticky : pas de plan sélectionné -->
-    <div v-if="!hasPlan && subscription !== undefined"
-      class="sticky top-0 z-20 flex items-center gap-3 bg-amber-50 border-b border-amber-200 px-6 py-3 shadow-sm">
-      <svg class="w-5 h-5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-      </svg>
-      <p class="text-sm text-amber-800 flex-1">
-        <strong>Aucun plan actif.</strong>
-        Les clés API prod sont désactivées — choisissez un plan pour les débloquer.
-        Les clés sandbox restent accessibles.
-      </p>
-      <router-link to="/billing" class="text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg transition shrink-0">
-        Choisir un plan →
-      </router-link>
-    </div>
-
   <div class="p-4 sm:p-8 overflow-auto max-w-xl">
     <h2 class="text-2xl font-bold text-gray-900 mb-1">Clés API</h2>
     <p class="text-sm text-gray-500 mb-8">Accès à votre espace de travail.</p>
