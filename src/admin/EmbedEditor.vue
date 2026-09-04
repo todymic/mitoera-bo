@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import { auth, switchMode } from './services/auth.js';
+import { auth, setApiModeImmediate } from './services/auth.js';
 import PlanEditor from './components/PlanEditor.vue';
 import { adminApi } from './services/adminApi.js';
 
@@ -16,8 +16,8 @@ const plan  = ref(null);
 onMounted(async () => {
   if (!planId) { error.value = "Paramètre planId manquant dans l'URL"; return; }
 
-  // Si le SDK a passé sandbox=1, forcer le mode sandbox pour les appels API dans l'iframe
-  if (params.get('sandbox') === '1') switchMode('sandbox');
+  // Forcer le mode API selon le paramètre du SDK — indépendant du localStorage du BO
+  setApiModeImmediate(params.get('sandbox') === '1' ? 'sandbox' : 'prod');
 
   // Auth : token JWT court-durée obtenu côté serveur via POST /api/auth/embed-token
   const urlToken = params.get('token');

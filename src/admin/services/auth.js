@@ -79,6 +79,11 @@ export function switchMode(mode, currentWorkspaceName = null) {
   window.location.reload();
 }
 
+// Utilisé dans l'embed-editor : force le mode sans reload ni toucher localStorage
+export function setApiModeImmediate(mode) {
+  apiMode.value = mode;
+}
+
 // Clé API pour le mode embed (pas de JWT, pas de localStorage)
 let _embedApiKey = null;
 

@@ -48,6 +48,7 @@ class MitoeraChartDesigner {
 
       const params = new URLSearchParams({ planId: this._chartKey, token });
       if (this._eventKey) params.set('eventId', this._eventKey);
+      if (isSandboxKey(this._keyId)) params.set('sandbox', '1');
 
       const iframe = document.createElement('iframe');
       iframe.src         = `${EDITOR_URL}?${params}`;
