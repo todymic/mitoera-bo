@@ -42,8 +42,8 @@ export async function loadWorkspaces(retries = 5) {
       const target = list.find(w => w.name === pendingName) ?? list[0];
       try {
         await switchWorkspace(target.id);
-        // Token du nouveau mode obtenu — recharge la page pour repartir proprement.
-        window.location.reload();
+        // switchWorkspace appelle loadWorkspaces() en interne → markReady() sera appelé
+        // par le chemin normal, pas besoin de recharger la page.
       } catch {
         workspace.value = target;
         markReady();
