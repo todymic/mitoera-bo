@@ -69,10 +69,10 @@ function seatBg(seatKey, categoryId, planStatus) {
     case 'sel-to-available':return color;
     case 'sel-to-canceled': return color;
     case 'sel-default':     return '#6366f1';
-    case 'available':       return color + '40';  // tinte catégorie bien visible
+    case 'available':       return color;           // couleur catégorie pleine
     case 'booked':          return color;          // couleur vive pleine
     case 'canceled':        return '#e8eaed';      // gris doux hors-vente
-    case 'hold':            return color + '18';   // très soft, à peine visible
+    case 'hold':            return color + '88';   // couleur catégorie à 53% visible
     default:                return color + '40';
   }
 }
@@ -86,10 +86,10 @@ function seatFg(seatKey, categoryId, planStatus) {
     case 'sel-to-available':return '#fff';
     case 'sel-to-canceled': return '#fff';
     case 'sel-default':     return '#fff';
-    case 'available':       return color;    // texte couleur catégorie sur fond clair
+    case 'available':       return '#fff';   // blanc sur fond plein
     case 'booked':          return '#fff';   // blanc sur fond vif
     case 'canceled':        return '#b8bcc4'; // gris très atténué
-    case 'hold':            return color + 'aa'; // catégorie atténuée sur fond très soft
+    case 'hold':            return '#fff';   // blanc sur fond semi-transparent
     default:                return color;
   }
 }
