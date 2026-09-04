@@ -69,10 +69,10 @@ function seatBg(seatKey, categoryId, planStatus) {
     case 'sel-to-available':return color;
     case 'sel-to-canceled': return color;
     case 'sel-default':     return '#6366f1';
-    case 'available':       return color + '70';    // catégorie à ~44% — visible mais distinct
+    case 'available':       return color + '22';    // fond très léger, bordure porte la couleur
     case 'booked':          return color;           // couleur vive pleine
-    case 'canceled':        return '#e8eaed';      // gris doux hors-vente
-    case 'hold':            return color + '88';   // couleur catégorie à 53% visible
+    case 'canceled':        return '#e8eaed';       // gris doux hors-vente
+    case 'hold':            return '#ffffff';       // fond blanc, bordure pointillée porte la couleur
     default:                return color + '40';
   }
 }
@@ -86,10 +86,10 @@ function seatFg(seatKey, categoryId, planStatus) {
     case 'sel-to-available':return '#fff';
     case 'sel-to-canceled': return '#fff';
     case 'sel-default':     return '#fff';
-    case 'available':       return '#fff';   // blanc sur fond plein
+    case 'available':       return color;     // texte couleur catégorie sur fond très léger
     case 'booked':          return '#fff';   // blanc sur fond vif
-    case 'canceled':        return '#b8bcc4'; // gris très atténué
-    case 'hold':            return '#fff';   // blanc sur fond semi-transparent
+    case 'canceled':        return '#b8bcc4'; // gris atténué
+    case 'hold':            return color;    // texte couleur catégorie sur fond blanc
     default:                return color;
   }
 }
@@ -103,7 +103,10 @@ function seatBorderStyle(seatKey, planStatus, categoryId) {
     case 'sel-to-available': return { border: `2.5px solid ${color}`, boxShadow: `0 0 0 3px ${color}44` };
     case 'sel-to-canceled':  return { border: `2.5px solid ${color}`, boxShadow: `0 0 0 3px ${color}44` };
     case 'sel-default':      return { border: `2.5px solid #fff`, boxShadow: `0 0 0 3px #6366f1` };
+    case 'available':        return { border: `1.5px solid ${color}` };
     case 'booked':           return { boxShadow: `0 1px 4px ${color}88, inset 0 1px 0 #ffffff33` };
+    case 'hold':             return { border: `1.5px dashed ${color}` };
+    case 'canceled':         return { border: `1.5px solid #d1d5db` };
     default:                 return {};
   }
 }
