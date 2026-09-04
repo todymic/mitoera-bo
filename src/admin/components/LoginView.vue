@@ -35,7 +35,7 @@ const error   = ref('');
 const loading = ref(false);
 const showPassword = ref(false);
 
-const PLAN_LABELS = { mora: 'Mora', soa: 'Soa', tsena: 'Tsena' };
+const PLAN_LABELS = { base: 'Base', plus: 'Plus', max: 'Max' };
 
 onMounted(() => {
   // Lire le mode depuis l'URL (?mode=register)

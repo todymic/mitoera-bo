@@ -158,9 +158,9 @@ function statusBadge(s) {
 const currentPlanKey = computed(() => subscription.value?.plan ?? null);
 
 const PLAN_META = {
-  mora:  { features: ['2 500 sièges / an inclus', 'Surplus : 0,15 € / siège', 'Facturation annuelle'] },
-  soa:   { features: ['5 000 sièges / an inclus', 'Surplus : 0,15 € / siège', 'Facturation annuelle', 'Support prioritaire'] },
-  tsena: { features: ['Sans abonnement fixe', '0,20 € / siège utilisé', 'Facturation mensuelle', 'Idéal pour les événements ponctuels'] },
+  base: { features: ['Sans abonnement fixe', '0,15 € / siège vendu', 'Facturation mensuelle', 'Idéal pour les événements ponctuels'] },
+  plus: { features: ['2 500 sièges / an inclus', 'Surplus : 0,15 € / siège', 'Facturation annuelle'] },
+  max:  { features: ['5 000 sièges / an inclus', 'Surplus : 0,15 € / siège', 'Facturation annuelle', 'Support prioritaire'] },
 };
 
 const planList = computed(() =>
