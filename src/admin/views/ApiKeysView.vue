@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { adminApi } from '../services/adminApi.js';
+import { apiFetch } from '../services/auth.js';
 
 const keys       = ref([]);
 const loading    = ref(false);
@@ -9,6 +10,9 @@ const revoking   = ref(null);
 const copied     = ref('');
 const newSecret     = ref(null);
 const showSecret    = ref(false);
+
+const subscription = ref(null);
+const hasPlan      = computed(() => subscription.value !== null);
 
 const publicKey  = computed(() => keys.value.find(k => k.scope === 'public'     && k.active) ?? null);
 const secretKey  = computed(() => keys.value.find(k => k.scope === 'backoffice' && k.active) ?? null);
@@ -79,14 +83,46 @@ function copy(text, id) {
   setTimeout(() => { copied.value = ''; }, 2000);
 }
 
+async function loadSubscription() {
+  try {
+    const r = await apiFetch('/api/billing/subscription');
+    if (r.ok) {
+      const d = await r.json();
+      subscription.value = d.subscription ?? null;
+    }
+  } catch { /* ignore */ }
+}
+
 onMounted(async () => {
-  await load();
-  if (!keys.value.find(k => k.scope === 'public'     && k.active)) await rotate('public');
-  if (!keys.value.find(k => k.scope === 'backoffice' && k.active)) await rotate('backoffice');
+  await Promise.all([load(), loadSubscription()]);
+  // Auto-génération des clés sandbox (toujours)
+  // Auto-génération des clés prod uniquement si un plan est actif
+  if (hasPlan.value) {
+    if (!keys.value.find(k => k.scope === 'public'     && k.active)) await rotate('public');
+    if (!keys.value.find(k => k.scope === 'backoffice' && k.active)) await rotate('backoffice');
+  }
 });
 </script>
 
 <template>
+  <div class="flex flex-col h-full">
+
+    <!-- Bannière sticky : pas de plan sélectionné -->
+    <div v-if="!hasPlan && subscription !== undefined"
+      class="sticky top-0 z-20 flex items-center gap-3 bg-amber-50 border-b border-amber-200 px-6 py-3 shadow-sm">
+      <svg class="w-5 h-5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      </svg>
+      <p class="text-sm text-amber-800 flex-1">
+        <strong>Aucun plan actif.</strong>
+        Les clés API prod sont désactivées — choisissez un plan pour les débloquer.
+        Les clés sandbox restent accessibles.
+      </p>
+      <router-link to="/billing" class="text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg transition shrink-0">
+        Choisir un plan →
+      </router-link>
+    </div>
+
   <div class="p-4 sm:p-8 overflow-auto max-w-xl">
     <h2 class="text-2xl font-bold text-gray-900 mb-1">Clés API</h2>
     <p class="text-sm text-gray-500 mb-8">Accès à votre espace de travail.</p>
@@ -109,8 +145,20 @@ onMounted(async () => {
     <div v-if="loading" class="text-sm text-gray-400">Chargement…</div>
 
     <template v-else>
-      <!-- Clé secrète -->
-      <div class="mb-6">
+
+      <!-- Bloc prod désactivé si pas de plan -->
+      <div v-if="!hasPlan" class="mb-8 bg-gray-50 border border-dashed border-gray-300 rounded-2xl p-6 text-center">
+        <svg class="w-8 h-8 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>
+        </svg>
+        <p class="text-sm text-gray-500 mb-3">Les clés prod (secrète &amp; publique) sont disponibles après activation d'un plan.</p>
+        <router-link to="/billing" class="text-sm font-semibold text-indigo-600 hover:text-indigo-800 underline">
+          Choisir un plan →
+        </router-link>
+      </div>
+
+      <!-- Clé secrète (prod uniquement) -->
+      <div v-if="hasPlan" class="mb-6">
         <h3 class="font-semibold text-gray-900 mb-2">Clé secrète (back-office)</h3>
 
         <!-- keyId — toujours visible -->
@@ -169,8 +217,8 @@ onMounted(async () => {
         <p class="text-xs text-gray-400 mt-1">SDK éditeur : <code class="bg-gray-100 px-1 rounded">secretKey: "{{ secretKey?.keyId ?? 'keyId' }}:VOTRE_SECRET"</code></p>
       </div>
 
-      <!-- Clé publique -->
-      <div class="mb-8">
+      <!-- Clé publique (prod uniquement) -->
+      <div v-if="hasPlan" class="mb-8">
         <h3 class="font-semibold text-gray-900 mb-2">Clé publique (widget)</h3>
         <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-3">
           <code class="flex-1 text-sm font-mono text-gray-700 truncate">{{ publicKey?.keyId ?? '…' }}</code>
@@ -226,5 +274,6 @@ onMounted(async () => {
         </div>
       </div>
     </template>
+  </div>
   </div>
 </template>
