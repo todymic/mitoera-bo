@@ -115,9 +115,9 @@ function statusBadge(s) { return STATUS_LABELS[s] ?? { label: s, cls: 'bg-gray-1
 const currentPlanKey = computed(() => subscription.value?.plan ?? null);
 
 const PLAN_META = {
-  base: { features: ['Sans abonnement fixe', '0,15 € / siège vendu', 'Facturation mensuelle', 'Idéal pour les événements ponctuels'] },
-  plus: { features: ['2 500 sièges / an inclus', 'Surplus : 0,15 € / siège', 'Facturation annuelle'] },
-  max:  { features: ['5 000 sièges / an inclus', 'Surplus : 0,15 € / siège', 'Facturation annuelle', 'Support prioritaire'] },
+  base: { price: null,  features: ['Sans abonnement fixe', '0,15 € / siège vendu', 'Facturation mensuelle', 'Idéal pour les événements ponctuels'] },
+  plus: { price: 300,   features: ['2 500 sièges / an inclus', 'Surplus : 0,15 € / siège', 'Facturation annuelle'] },
+  max:  { price: 575,   features: ['5 000 sièges / an inclus', 'Surplus : 0,15 € / siège', 'Facturation annuelle', 'Support prioritaire'] },
 };
 
 const planList = computed(() =>
@@ -126,6 +126,7 @@ const planList = computed(() =>
     label:    p.label,
     quota:    p.annual_seat_quota,
     payPerUse: p.pay_per_use,
+    price:    PLAN_META[key]?.price ?? null,
     features: PLAN_META[key]?.features ?? [],
     isCurrent: key === currentPlanKey.value,
   }))
@@ -204,9 +205,17 @@ const planList = computed(() =>
           </span>
         </div>
 
+        <!-- Prix -->
+        <div class="mb-3">
+          <span v-if="plan.price" class="text-2xl font-extrabold text-gray-900">{{ plan.price }} €</span>
+          <span v-if="plan.price" class="text-xs text-gray-400 ml-1">/ an</span>
+          <span v-else class="text-2xl font-extrabold text-gray-900">0,15 €</span>
+          <span v-if="!plan.price" class="text-xs text-gray-400 ml-1">/ siège vendu</span>
+        </div>
+
         <p class="text-xs text-gray-500 mb-4">
-          <span v-if="plan.payPerUse">Facturation à la séance</span>
-          <span v-else>{{ plan.quota.toLocaleString('fr-FR') }} sièges / an inclus</span>
+          <span v-if="plan.payPerUse">Sans abonnement — payez uniquement ce que vous vendez</span>
+          <span v-else>{{ plan.quota.toLocaleString('fr-FR') }} sièges / an prépayés</span>
         </p>
 
         <ul class="flex-1 space-y-2 mb-6">
