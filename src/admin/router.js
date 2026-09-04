@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { auth, apiMode } from './services/auth.js';
 
-const SANDBOX_FORBIDDEN = ['usage', 'billing', 'team'];
+const SANDBOX_FORBIDDEN = ['usage', 'billing', 'subscription', 'team'];
 
 // Lazy-loaded views
 const PlansView    = () => import('./views/PlansView.vue');
@@ -12,7 +12,8 @@ const HomeView     = () => import('./views/HomeView.vue');
 const ApiKeysView  = () => import('./views/ApiKeysView.vue');
 const ProfileView  = () => import('./views/ProfileView.vue');
 const UsageView    = () => import('./views/UsageView.vue');
-const BillingView    = () => import('./views/BillingView.vue');
+const BillingView      = () => import('./views/BillingView.vue');
+const SubscriptionView = () => import('./views/SubscriptionView.vue');
 const SettingsView   = () => import('./views/SettingsView.vue');
 const TeamView       = () => import('./views/TeamView.vue');
 const LoginView           = () => import('./components/LoginView.vue');
@@ -32,6 +33,7 @@ const routes = [
   { path: '/profile',       name: 'profile',      component: ProfileView },
   { path: '/usage',         name: 'usage',        component: UsageView },
   { path: '/billing',       name: 'billing',      component: BillingView },
+  { path: '/subscription',  name: 'subscription', component: SubscriptionView },
   { path: '/settings',      name: 'settings',     component: SettingsView },
   { path: '/team',          name: 'team',         component: TeamView },
   { path: '/:pathMatch(.*)*', redirect: '/' },

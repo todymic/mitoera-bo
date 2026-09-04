@@ -140,6 +140,13 @@ const allNavItems = [
     match: (path) => path.startsWith('/billing'),
   },
   {
+    to: '/subscription',
+    label: 'Abonnement',
+    sandboxHidden: true,
+    icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15 9a3 3 0 11-6 0 3 3 0 016 0zm-9 9a9 9 0 1118 0H6z"/></svg>',
+    match: (path) => path.startsWith('/subscription'),
+  },
+  {
     to: '/profile',
     label: 'Profil',
     icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>',
@@ -318,7 +325,7 @@ const navItems = computed(() =>
           <p class="text-sm text-white flex-1 font-medium">
             Aucun plan actif — les clés API en production sont désactivées.
           </p>
-          <router-link to="/billing" class="text-xs font-bold bg-white text-orange-600 hover:bg-orange-50 px-3 py-1.5 rounded-lg transition shrink-0">
+          <router-link to="/subscription" class="text-xs font-bold bg-white text-orange-600 hover:bg-orange-50 px-3 py-1.5 rounded-lg transition shrink-0">
             Choisir un plan →
           </router-link>
         </div>
