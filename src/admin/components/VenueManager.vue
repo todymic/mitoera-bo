@@ -86,7 +86,6 @@ async function remove(v) {
       >
         <div class="min-w-0">
           <p class="font-semibold text-gray-700 truncate">{{ v.name }}</p>
-          <p class="text-xs text-gray-400 truncate">{{ v.slug }}</p>
         </div>
         <div class="flex items-center gap-1 shrink-0">
           <button @click.stop="openEdit(v)" class="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 text-xs">✎</button>

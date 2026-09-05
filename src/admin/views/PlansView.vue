@@ -126,7 +126,6 @@ onMounted(loadPlans);
               <p class="font-semibold text-gray-800 truncate">{{ plan.name }}</p>
             </template>
             <div class="flex flex-wrap items-center gap-2 mt-0.5">
-              <p class="text-xs text-gray-400 font-mono">{{ plan.slug }}</p>
               <span :class="STATUS_COLORS[plan.status || 'draft']" class="text-xs font-semibold px-2 py-0.5 rounded-full">
                 {{ STATUS_LABELS[plan.status || 'draft'] }}
               </span>
