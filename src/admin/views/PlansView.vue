@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { adminApi } from '../services/adminApi.js';
 import PlanPreview from '../components/PlanPreview.vue';
@@ -11,15 +11,9 @@ const planColors   = ref({});  // { [planId]: { [categoryId]: color } }
 const loading      = ref(false);
 const error       = ref('');
 const newPlanName = ref('');
-const newPlanSlug = ref('');
 const creating    = ref(false);
 const editingPlan = ref(null);
 const editingName = ref('');
-
-watch(newPlanName, (v) => {
-  newPlanSlug.value = v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-});
 
 const STATUS_LABELS = { draft: 'Brouillon', published: 'Publié', archived: 'Archivé' };
 const STATUS_COLORS = { draft: 'bg-yellow-100 text-yellow-700', published: 'bg-green-100 text-green-700', archived: 'bg-gray-100 text-gray-500' };
@@ -54,7 +48,7 @@ async function createPlan() {
   creating.value = true;
   try {
     await adminApi.createVenue({ name: newPlanName.value });
-    newPlanName.value = ''; newPlanSlug.value = '';
+    newPlanName.value = '';
     await loadPlans();
   } catch (e) { error.value = e.message; }
   finally { creating.value = false; }
@@ -99,8 +93,6 @@ onMounted(loadPlans);
       <div class="flex flex-col sm:flex-row gap-3">
         <input v-model="newPlanName" type="text" placeholder="Nom du plan" @keyup.enter="createPlan"
           class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400" />
-        <input v-model="newPlanSlug" type="text" placeholder="slug-plan" readonly
-          class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-400 bg-gray-50" />
         <button :disabled="!newPlanName.trim() || creating" @click="createPlan"
           class="px-5 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white text-sm font-semibold transition sm:shrink-0">
           {{ creating ? 'Création…' : 'Créer le plan' }}
