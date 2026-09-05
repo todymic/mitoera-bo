@@ -25,14 +25,13 @@ test.describe('Clés API', () => {
     await page.goto('/api-keys');
 
     // Check if the no-plan state is shown
-    const lockedBlock = page.getByText(/choisissez un plan/i);
-    const hasPlan     = await page.getByText(/clé publique/i).isVisible().catch(() => false);
+    const lockedBlock = page.getByRole('link', { name: /choisir un plan/i }).first();
+    const hasPlan     = await page.getByText(/clé publique \(widget\)/i).isVisible().catch(() => false);
 
     if (!hasPlan) {
       await expect(lockedBlock).toBeVisible();
     } else {
-      // User already has a plan — prod keys should be visible
-      await expect(page.getByText(/clé publique/i)).toBeVisible();
+      await expect(page.getByText(/clé publique \(widget\)/i)).toBeVisible();
     }
   });
 });

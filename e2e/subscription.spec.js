@@ -23,9 +23,9 @@ test.describe('Abonnement', () => {
   test('la page /subscription affiche les 3 plans avec leur prix', async ({ page }) => {
     await page.goto('/subscription');
 
-    await expect(page.getByText('Base')).toBeVisible();
-    await expect(page.getByText('Plus')).toBeVisible();
-    await expect(page.getByText('Max')).toBeVisible();
+    await expect(page.getByText('Base').first()).toBeVisible();
+    await expect(page.getByText('Plus').first()).toBeVisible();
+    await expect(page.getByText('Max').first()).toBeVisible();
 
     // Prix prépayés annuels
     await expect(page.getByText('300 €')).toBeVisible();
@@ -65,7 +65,8 @@ test.describe('Abonnement', () => {
     await expect(page.getByRole('heading', { name: 'Facturation' })).toBeVisible();
     // No subscription tab anymore
     await expect(page.getByRole('button', { name: 'Abonnement' })).not.toBeVisible();
-    // Should show invoice table or empty state
+    // Wait for loading to finish, then check invoice table or empty state
+    await page.waitForSelector('[class*="animate-pulse"]', { state: 'hidden', timeout: 10_000 }).catch(() => {});
     const hasInvoices = await page.getByText('Aucune facture disponible').isVisible().catch(() => false);
     const hasTable    = await page.locator('table').isVisible().catch(() => false);
     expect(hasInvoices || hasTable).toBeTruthy();
