@@ -19,15 +19,18 @@ export default async function globalSetup() {
   const token = await page.evaluate(() => localStorage.getItem('bo_jwt') ?? '');
 
   // Appeler l'endpoint de reset (sandbox uniquement)
-  if (token) {
+  const E2E_SECRET = process.env.E2E_RESET_SECRET ?? '';
+  if (token && E2E_SECRET) {
     const resp = await page.request.post(`${BASE_URL}/api/billing/test/reset`, {
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'X-E2E-Secret': E2E_SECRET,
+      },
     });
     console.log(`[global-setup] reset subscription: HTTP ${resp.status()}`);
   } else {
-    // Fallback : récupérer le cookie de session
-    const cookies = await page.context().cookies();
-    console.log('[global-setup] no token found, cookies:', cookies.map(c => c.name).join(', '));
+    console.log('[global-setup] skip reset: token=%s secret=%s', !!token, !!E2E_SECRET);
   }
 
   await browser.close();
