@@ -71,10 +71,10 @@ export const adminApi = {
   async listVenues() { return (await apiFetch('/api/charts')).json(); },
   async getVenue(id) { return (await apiFetch(`/api/charts/${id}`)).json(); },
   async createVenue(payload) {
-    return (await apiFetch('/api/charts', { method: 'POST', body: JSON.stringify({ name: payload.name, slug: slugify(payload.name) }) })).json();
+    return (await apiFetch('/api/charts', { method: 'POST', body: JSON.stringify({ name: payload.name }) })).json();
   },
   async updateVenue(id, payload) {
-    return (await apiFetch(`/api/charts/${id}`, { method: 'PUT', body: JSON.stringify({ name: payload.name, slug: slugify(payload.name) }) })).json();
+    return (await apiFetch(`/api/charts/${id}`, { method: 'PUT', body: JSON.stringify({ name: payload.name }) })).json();
   },
   async updateVenueStatus(id, status) {
     return (await apiFetch(`/api/charts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })).json();
