@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { adminApi } from '../services/adminApi.js';
-import { apiFetch } from '../services/auth.js';
+import { apiFetch, apiMode } from '../services/auth.js';
 
 const keys       = ref([]);
 const loading    = ref(false);
@@ -11,8 +11,9 @@ const copied     = ref('');
 const newSecret     = ref(null);
 const showSecret    = ref(false);
 
+const isSandbox    = computed(() => apiMode.value === 'sandbox');
 const subscription = ref(null);
-const hasPlan      = computed(() => subscription.value !== null);
+const hasPlan      = computed(() => isSandbox.value || subscription.value !== null);
 
 const publicKey  = computed(() => keys.value.find(k => k.scope === 'public'     && k.active) ?? null);
 const secretKey  = computed(() => keys.value.find(k => k.scope === 'backoffice' && k.active) ?? null);
@@ -95,8 +96,6 @@ async function loadSubscription() {
 
 onMounted(async () => {
   await Promise.all([load(), loadSubscription()]);
-  // Auto-génération des clés sandbox (toujours)
-  // Auto-génération des clés prod uniquement si un plan est actif
   if (hasPlan.value) {
     if (!keys.value.find(k => k.scope === 'public'     && k.active)) await rotate('public');
     if (!keys.value.find(k => k.scope === 'backoffice' && k.active)) await rotate('backoffice');
