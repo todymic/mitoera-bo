@@ -4,10 +4,15 @@ import { apiFetch } from '../services/auth.js';
 
 const plans        = ref({});
 const subscription = ref(null);
+const hasCard      = ref(true);
 const subLoading   = ref(true);
 const subError     = ref('');
 const checkoutLoading = ref('');
 const portalLoading   = ref(false);
+
+const needsCard = computed(() =>
+  subscription.value?.plan === 'base' && !hasCard.value
+);
 
 async function loadSubscription() {
   subLoading.value = true;
@@ -18,6 +23,7 @@ async function loadSubscription() {
     const d = await r.json();
     plans.value        = d.plans;
     subscription.value = d.subscription;
+    hasCard.value      = d.hasCard ?? true;
   } catch (e) {
     subError.value = e.message;
   } finally {
@@ -178,7 +184,22 @@ const planList = computed(() =>
         </div>
       </div>
 
-      <div class="mt-4">
+      <!-- Warning : carte manquante pour plan Base -->
+      <div v-if="needsCard" class="mt-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+        <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        </svg>
+        <div class="flex-1">
+          <p class="text-sm font-semibold text-amber-800">Aucune carte bancaire enregistrée</p>
+          <p class="text-xs text-amber-700 mt-0.5">Sans carte, la facturation mensuelle du surplus de sièges est impossible. Enregistrez votre carte pour éviter toute interruption.</p>
+        </div>
+        <button @click="subscribe('base')" :disabled="checkoutLoading === 'base'"
+          class="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition disabled:opacity-50">
+          {{ checkoutLoading === 'base' ? 'Chargement…' : 'Enregistrer ma carte' }}
+        </button>
+      </div>
+
+      <div class="mt-4" v-if="!needsCard">
         <button @click="openPortal" :disabled="portalLoading"
           class="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50">
           {{ portalLoading ? 'Chargement…' : 'Gérer la carte / annuler' }}
