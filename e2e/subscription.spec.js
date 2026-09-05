@@ -5,8 +5,8 @@ const PASSWORD = process.env.E2E_PASSWORD ?? '';
 
 async function login(page) {
   await page.goto('/login');
-  await page.getByLabel(/email/i).fill(EMAIL);
-  await page.getByLabel(/mot de passe|password/i).fill(PASSWORD);
+  await page.locator('input[type="email"]').first().fill(EMAIL);
+  await page.locator('input[type="password"]').first().fill(PASSWORD);
   await page.getByRole('button', { name: /connexion|se connecter/i }).click();
   await page.waitForURL('/', { timeout: 10_000 });
 }
