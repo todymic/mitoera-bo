@@ -466,15 +466,27 @@ watch([() => props.seatRows, () => props.zones, () => props.tableSections, () =>
         <!-- Blocs de sièges -->
         <div v-for="row in seatRows" :key="row.id"
           class="absolute select-none"
-          :style="{ top: row.top+'px', left: row.left+'px', paddingTop: '14px', transform: `rotate(${row.rotation||0}deg)` }">
+          :style="{ top: row.top+'px', left: row.left+'px', transform: `rotate(${row.rotation||0}deg)` }">
           <div v-if="isLod" class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white border rounded-full px-3 py-0.5 text-xs font-bold whitespace-nowrap z-10"
             :style="{ color: catById(row.categoryId).color, borderColor: catById(row.categoryId).color+'55' }">
             {{ row.section || catById(row.categoryId).name }}
           </div>
-          <div class="rounded-lg p-1.5" :class="isLod ? 'opacity-50 blur-[2px]' : ''"
-            :style="{ background: catById(row.categoryId).color+'14', border: `1px solid ${catById(row.categoryId).color}55` }">
+          <div :class="[isLod ? 'opacity-50 blur-[2px]' : '', row.isGroup ? '' : 'rounded-lg']"
+            :style="{
+              padding: row.isGroup ? '0' : '6px',
+              background: row.isGroup ? 'transparent' : catById(row.categoryId).color+'14',
+              border: row.isGroup ? 'none' : `1px solid ${catById(row.categoryId).color}55`,
+            }">
             <div class="flex flex-col gap-1.5">
-            <div v-for="line in buildSeatsByRow(row)" :key="line.r" class="flex gap-1.5">
+            <div v-for="line in buildSeatsByRow(row)" :key="line.r" class="flex gap-1.5 items-center">
+              <!-- Libelle de rangee GAUCHE - dans le flux, comme dans l'editeur -->
+              <div v-if="!row.isGroup && (row.seatSize||22) >= 12"
+                class="shrink-0 flex items-center justify-end font-bold leading-none select-none"
+                :style="{
+                  width: '16px', opacity: 0.6,
+                  fontSize: Math.max(7, Math.floor((row.seatSize||22) * 0.45)) + 'px',
+                  color: catById(row.categoryId).color,
+                }">{{ line.seats[0]?.rowLabel ?? '' }}</div>
               <!-- colOffset se compte en colonnes : cases vides pour pousser la rangée -->
               <div v-for="ph in line.colOffset" :key="'ph-' + line.r + '-' + ph"
                 :style="{
@@ -507,6 +519,14 @@ watch([() => props.seatRows, () => props.zones, () => props.tableSections, () =>
                 </svg>
                 <span v-else>{{ (row.seatSize||22) >= 14 && seat.planStatus!=='deleted' ? seat.label : '' }}</span>
               </div>
+              <!-- Libelle de rangee DROITE -->
+              <div v-if="!row.isGroup && (row.seatSize||22) >= 12"
+                class="shrink-0 flex items-center justify-start font-bold leading-none select-none"
+                :style="{
+                  width: '16px', opacity: 0.6,
+                  fontSize: Math.max(7, Math.floor((row.seatSize||22) * 0.45)) + 'px',
+                  color: catById(row.categoryId).color,
+                }">{{ line.seats[0]?.rowLabel ?? '' }}</div>
             </div>
             </div>
           </div>

@@ -414,10 +414,10 @@ watch(
                 }">
                 {{ row.section || catById(row.categoryId).name }}
               </div>
-              <div class="seat-block-card"
+              <div :class="row.isGroup ? '' : 'seat-block-card'"
                 :style="{
-                  background: catById(row.categoryId).color + '14',
-                  borderColor: catById(row.categoryId).color + '55',
+                  background: row.isGroup ? 'transparent' : catById(row.categoryId).color + '14',
+                  borderColor: row.isGroup ? 'transparent' : catById(row.categoryId).color + '55',
                 }">
                 <!-- Rendu rangée par rangée pour respecter les overrides par rangée -->
                 <div :class="isLod ? 'lod-blur' : ''" class="flex flex-col gap-1.5">
@@ -600,7 +600,8 @@ watch(
   background-color: #ffffff;
 }
 .seat-block {
-  padding-top: 14px;
+  /* Aucun padding : l'editeur n'en met pas et le badge LOD est en position absolue.
+     Un padding-top ici decalerait tous les blocs vers le bas par rapport au plan. */
 }
 .seat-block-card {
   border: 1px solid transparent;
