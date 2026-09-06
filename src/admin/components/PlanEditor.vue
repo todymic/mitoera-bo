@@ -220,6 +220,29 @@ function startPan(ev) {
   if (activeTool.value) return;
   // Mode sélection multiple (ou Maj enfoncée) : on trace un rectangle au lieu de déplacer la vue
   if (marqueeMode.value || ev.shiftKey) { ev.preventDefault(); startMarquee(ev); return; }
+  // Groupe sélectionné : drag depuis le fond déplace le groupe, pas la vue
+  if (selectedObjects.size > 1) {
+    ev.preventDefault();
+    const objs = objectsInSelection();
+    if (objs.length) {
+      const ref = objs[0];
+      const canvasRect = canvasRef.value.getBoundingClientRect();
+      const z = zoom.value;
+      drag.active = true;
+      drag.mode = 'move';
+      drag.kind = ref.kind;
+      drag.id = ref.obj.id;
+      drag.moved = false;
+      drag.originLeft = ref.obj.left || 0;
+      drag.originTop  = ref.obj.top  || 0;
+      drag.group = objs.map(({ kind: k, obj }) => ({ kind: k, id: obj.id, left: obj.left || 0, top: obj.top || 0 }));
+      drag.offsetX = (ev.clientX - canvasRect.left) / z - (ref.obj.left || 0);
+      drag.offsetY = (ev.clientY - canvasRect.top)  / z - (ref.obj.top  || 0);
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', stopDrag);
+    }
+    return;
+  }
   ev.preventDefault();
   panWasDrag = false;
   pan.active = true;
