@@ -2911,7 +2911,7 @@ async function saveAll(opts = {}) {
             v-for="row in seatRows" :key="row.id"
             class="absolute cursor-move select-none"
             :style="{
-              top: row.top + 'px', left: row.left + 'px', zIndex: row.zIndex || 1,
+              top: row.top + 'px', left: row.left + 'px', zIndex: (row.zIndex || 1) + 1000,
               transform: `rotate(${row.rotation || 0}deg)`,
             }"
             @pointerdown="startDrag($event, 'seatRow', row)"
