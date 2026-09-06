@@ -217,13 +217,16 @@ function selectAll() {
 function selectNone()   { selectedSeats.value = new Set(); }
 function selectBooked() { selectedSeats.value = new Set(allSeats.value.filter(s => seatStatusMap.value[s.key] === 'booked').map(s => s.key)); }
 function selectAvail()  { selectedSeats.value = new Set(allSeats.value.filter(s => (seatStatusMap.value[s.key] || 'available') === 'available').map(s => s.key)); }
+function selectHold()   { selectedSeats.value = new Set(allSeats.value.filter(s => seatStatusMap.value[s.key] === 'hold').map(s => s.key)); }
 
 // Présence de chaque statut dans la sélection
 const hasSelectedAvailable = computed(() =>
   [...selectedSeats.value].some(k => ['available', 'hold'].includes(seatStatusMap.value[k] || 'available'))
 );
-const hasSelectedBooked = computed(() =>
-  [...selectedSeats.value].some(k => seatStatusMap.value[k] === 'booked')
+// Libérables : les sièges vendus ET les sièges en attente (hold), dont la
+// réservation temporaire est purgée côté API (holdToken / heldUntil remis à null).
+const hasSelectedReleasable = computed(() =>
+  [...selectedSeats.value].some(k => ['booked', 'hold'].includes(seatStatusMap.value[k]))
 );
 const hasSelectedCanceled = computed(() =>
   [...selectedSeats.value].some(k => seatStatusMap.value[k] === 'canceled')
@@ -328,13 +331,15 @@ async function applyStatus(status) {
           <button @click="selectAll"    class="text-xs px-2.5 py-1 rounded border border-gray-200 hover:bg-gray-50">Tout</button>
           <button @click="selectNone"   class="text-xs px-2.5 py-1 rounded border border-gray-200 hover:bg-gray-50">Aucun</button>
           <button @click="selectBooked" class="text-xs px-2.5 py-1 rounded border border-green-200 text-green-700 hover:bg-green-50">Vendus</button>
+          <button @click="selectHold"   class="text-xs px-2.5 py-1 rounded border border-amber-200 text-amber-700 hover:bg-amber-50">En attente</button>
           <button @click="selectAvail"  class="text-xs px-2.5 py-1 rounded border border-gray-200 hover:bg-gray-50">Libres</button>
           <div class="ml-auto flex gap-2">
             <button :disabled="!selectedSeats.size || updating || !hasSelectedAvailable" @click="applyStatus('booked')"
               class="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold disabled:opacity-40">
               Marquer vendus
             </button>
-            <button :disabled="!selectedSeats.size || updating || !hasSelectedBooked" @click="applyStatus('available')"
+            <button :disabled="!selectedSeats.size || updating || !hasSelectedReleasable" @click="applyStatus('available')"
+              title="Libère les sièges vendus et les sièges en attente sélectionnés"
               class="px-3 py-1.5 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold disabled:opacity-40">
               Marquer libres
             </button>
