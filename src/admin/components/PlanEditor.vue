@@ -555,45 +555,62 @@ function tableSectionSeats(ts) {
 }
 
 // Computed: all seat keys (for duplicate detection)
+// Chaque clé du plan, avec l'objet qui la produit.
+// Les blocs passent par seatRowKeys() : appliquer les mêmes formules que le
+// rendu est indispensable, sinon les réglages par rangée (nombre de sièges,
+// libellé, départ de numérotation) sont ignorés et le détecteur signale des
+// doublons qui n'existent pas.
 const allSeatKeys = computed(() => {
-  const keys = [];
+  const entries = [];
   for (const r of seatRows.value) {
-    const section = r.section || r.label || r.id;
-    const disabled = r.disabledSeats || [];
-    for (let row = 0; row < (r.rows || 0); row++) {
-      for (let col = 0; col < (r.cols || 0); col++) {
-        if (disabled.includes(`${row}-${col}`)) continue;
-        const rl = computeAxisLabel(row, r.rows, r.rowFormat, r.rowDirection);
-        const cl = computeAxisLabel(col, r.cols, r.colFormat, r.colDirection);
-        keys.push(`${section}-${rl}-${cl}`);
-      }
-    }
+    const name = r.section || r.label || r.id;
+    for (const key of seatRowKeys(r)) entries.push({ key, id: r.id, name, kind: 'seatRow' });
   }
   for (const t of tableZones.value) {
-    const section = t.section || t.label || t.id;
+    const name = t.section || t.label || t.id;
     const disabled = t.disabledSeats || [];
     for (let i = 0; i < (t.seatCount || 6); i++) {
-      if (!disabled.includes(i)) keys.push(`${section}-${i + 1}`);
+      if (!disabled.includes(i)) entries.push({ key: `${name}-${i + 1}`, id: t.id, name, kind: 'tableZone' });
     }
   }
   for (const ts of tableSections.value) {
-    const section = ts.section || ts.label || ts.id;
+    const name = ts.section || ts.label || ts.id;
     const disabled = ts.disabledSeats || [];
     const totalTables = (ts.tableCount || 3) * (ts.tableRows || 1);
     for (let ti = 0; ti < totalTables; ti++) {
       for (let si = 0; si < (ts.seatsPerTable || 6); si++) {
-        if (!disabled.includes(`${ti}-${si}`)) keys.push(`${section}-${ti + 1}-${si + 1}`);
+        if (!disabled.includes(`${ti}-${si}`)) {
+          entries.push({ key: `${name}-${ti + 1}-${si + 1}`, id: ts.id, name, kind: 'tableSection' });
+        }
       }
     }
   }
-  return keys;
+  return entries;
 });
 
 const duplicateKeys = computed(() => {
   const counts = {};
-  for (const k of allSeatKeys.value) counts[k] = (counts[k] || 0) + 1;
-  return Object.keys(counts).filter(k => counts[k] > 1);
+  for (const e of allSeatKeys.value) counts[e.key] = (counts[e.key] || 0) + 1;
+  return Object.keys(counts).filter((k) => counts[k] > 1);
 });
+
+// Quels objets portent chaque clé en doublon — pour que le panneau le dise
+const duplicateOwners = computed(() => {
+  const dups = new Set(duplicateKeys.value);
+  const byKey = {};
+  for (const e of allSeatKeys.value) {
+    if (!dups.has(e.key)) continue;
+    (byKey[e.key] ||= []).push(e);
+  }
+  return byKey;
+});
+function duplicateOwnersLabel(key) {
+  const owners = duplicateOwners.value[key] || [];
+  const names = owners.map((o) => o.name);
+  return [...new Set(names)].length === 1 && names.length > 1
+    ? `${names.length}× dans « ${names[0]} »`
+    : names.join(' + ');
+}
 
 const anomaliesOpen = ref(true);
 const hoveredTableSection = ref(null);
@@ -629,16 +646,7 @@ const anomalies = computed(() => {
 
 function findObjectByKey(key) {
   for (const r of seatRows.value) {
-    const section = r.section || r.label || r.id;
-    const disabled = r.disabledSeats || [];
-    for (let row = 0; row < (r.rows || 0); row++) {
-      for (let col = 0; col < (r.cols || 0); col++) {
-        if (disabled.includes(`${row}-${col}`)) continue;
-        const rl = computeAxisLabel(row, r.rows, r.rowFormat, r.rowDirection);
-        const cl = computeAxisLabel(col, r.cols, r.colFormat, r.colDirection);
-        if (`${section}-${rl}-${cl}` === key) return { kind: 'seatRow', obj: r };
-      }
-    }
+    if (seatRowKeys(r).includes(key)) return { kind: 'seatRow', obj: r };
   }
   for (const t of tableZones.value) {
     const section = t.section || t.label || t.id;
@@ -3009,6 +3017,7 @@ async function saveAll(opts = {}) {
                   class="font-mono text-[10px] text-red-500 hover:text-red-700 hover:underline text-left"
                   @click="selectAnomalyItem(a, { key: k })"
                 >{{ k }}</button>
+                <span class="text-[10px] text-red-400 italic ml-1">{{ duplicateOwnersLabel(k) }}</span>
               </li>
               <li v-if="a.keys.length > 8" class="text-[10px] text-red-400">… et {{ a.keys.length - 8 }} autre(s)</li>
             </ul>
