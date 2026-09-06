@@ -175,7 +175,12 @@ function itemShowBadge(item) {
 
 const drag = reactive({ active: false, mode: null, kind: null, id: null, offsetX: 0, offsetY: 0, startW: 0, startH: 0, startX: 0, startY: 0 });
 const pan = reactive({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 });
-const rowReorder = reactive({ active: false, seatRowId: null, displayPos: -1, dataR: -1, targetPos: -1, startY: 0, cellH: 28 });
+const rowReorder = reactive({
+  active: false, seatRowId: null, displayPos: -1, dataR: -1,
+  targetPos: -1, startY: 0, startX: 0, cellH: 28, cellW: 26,
+  directionDecided: false, direction: null,
+  initColOffset: 0,
+});
 
 let panWasDrag = false;
 
@@ -504,7 +509,8 @@ function seatGridByRow(row) {
   return order.map((dataR, displayPos) => {
     const rOver = rowOverrides[dataR] || {};
     const rowLabel = rOver.label != null ? rOver.label : computeAxisLabel(dataR, row.rows, row.rowFormat || 'A-Z', row.rowDirection || 'normal');
-    return { r: dataR, displayPos, rowLabel, seats: all.filter((s) => s.r === dataR) };
+    const colOffset = rOver.colOffset ?? 0;
+    return { r: dataR, displayPos, rowLabel, colOffset, seats: all.filter((s) => s.r === dataR) };
   });
 }
 
@@ -1117,7 +1123,12 @@ function startRowReorder(ev, row, displayPos, dataR) {
   rowReorder.dataR = dataR;
   rowReorder.targetPos = displayPos;
   rowReorder.startY = ev.clientY;
+  rowReorder.startX = ev.clientX;
   rowReorder.cellH = (row.seatSize || 22) + 6;
+  rowReorder.cellW = (row.seatSize || 22) + 4;
+  rowReorder.directionDecided = false;
+  rowReorder.direction = null;
+  rowReorder.initColOffset = row.rowOverrides?.[dataR]?.colOffset ?? 0;
   window.addEventListener('pointermove', onRowReorderMove);
   window.addEventListener('pointerup', stopRowReorder);
 }
@@ -1126,9 +1137,22 @@ function onRowReorderMove(ev) {
   if (!rowReorder.active) return;
   const row = seatRows.value.find((r) => r.id === rowReorder.seatRowId);
   if (!row) return;
+  const dx = (ev.clientX - rowReorder.startX) / zoom.value;
   const dy = (ev.clientY - rowReorder.startY) / zoom.value;
-  const shift = Math.round(dy / rowReorder.cellH);
-  rowReorder.targetPos = Math.max(0, Math.min(row.rows - 1, rowReorder.displayPos + shift));
+
+  if (!rowReorder.directionDecided && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+    rowReorder.direction = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
+    rowReorder.directionDecided = true;
+  }
+  if (!rowReorder.directionDecided) return;
+
+  if (rowReorder.direction === 'horizontal') {
+    const newOffset = Math.max(0, rowReorder.initColOffset + Math.round(dx / rowReorder.cellW));
+    setRowOverride(row, rowReorder.dataR, 'colOffset', newOffset || null);
+  } else {
+    const shift = Math.round(dy / rowReorder.cellH);
+    rowReorder.targetPos = Math.max(0, Math.min(row.rows - 1, rowReorder.displayPos + shift));
+  }
 }
 
 function stopRowReorder() {
@@ -1136,7 +1160,7 @@ function stopRowReorder() {
   window.removeEventListener('pointerup', stopRowReorder);
   if (!rowReorder.active) return;
   const row = seatRows.value.find((r) => r.id === rowReorder.seatRowId);
-  if (row && rowReorder.targetPos !== rowReorder.displayPos) {
+  if (row && rowReorder.direction === 'vertical' && rowReorder.targetPos !== rowReorder.displayPos) {
     const base = Array.from({ length: row.rows }, (_, i) => i);
     const order = [...(row.rowOrder?.length === row.rows ? row.rowOrder : base)];
     const [moved] = order.splice(rowReorder.displayPos, 1);
@@ -1147,6 +1171,8 @@ function stopRowReorder() {
   }
   rowReorder.active = false;
   rowReorder.seatRowId = null;
+  rowReorder.directionDecided = false;
+  rowReorder.direction = null;
 }
 
 // ---------- Ajout ----------
@@ -2984,7 +3010,7 @@ async function saveAll(opts = {}) {
               </div>
               <!-- Rendu rangée par rangée : label à gauche + sièges + label à droite -->
               <div :class="itemShowBadge(row) ? 'lod-blur' : ''" style="display:flex;flex-direction:column;gap:6px;">
-                <div v-for="{ r: rIdx, displayPos: dPos, rowLabel, seats: rowSeats } in seatGridByRow(row)" :key="rIdx"
+                <div v-for="{ r: rIdx, displayPos: dPos, rowLabel, colOffset, seats: rowSeats } in seatGridByRow(row)" :key="rIdx"
                   style="display:flex;align-items:center;gap:6px;position:relative;"
                   :style="{
                     background: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx
@@ -3016,6 +3042,16 @@ async function saveAll(opts = {}) {
                       color: catById(row.categoryId).color,
                       opacity: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx ? 1 : 0.6,
                     }">{{ rowLabel }}</div>
+                  <!-- Placeholders décalage horizontal (colOffset) -->
+                  <div
+                    v-for="pi in colOffset" :key="'ph-' + pi"
+                    class="shrink-0 pointer-events-none"
+                    :style="{
+                      height: (row.seatSize || 22) + 'px',
+                      minWidth: (row.seatSize || 22) + 'px',
+                      visibility: 'hidden',
+                    }"
+                  ></div>
                   <!-- Sièges -->
                   <div
                     v-for="seat in rowSeats" :key="seat.key"
@@ -3769,6 +3805,21 @@ async function saveAll(opts = {}) {
                 class="w-7 h-7 rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center text-sm font-bold">+</button>
               <button v-if="selectedSeatRow.rowOverrides?.[selectedRowIndex]?.colStartAt"
                 @click="setRowOverride(selectedSeatRow, selectedRowIndex, 'colStartAt', 0)"
+                class="text-[10px] text-gray-400 hover:text-gray-600 underline">Reset</button>
+            </div>
+          </div>
+          <div>
+            <label class="text-[11px] text-gray-500">Décalage horizontal (alignement colonnes)</label>
+            <div class="flex items-center gap-2 mt-1">
+              <button @click="setRowOverride(selectedSeatRow, selectedRowIndex, 'colOffset', Math.max(0, (selectedSeatRow.rowOverrides?.[selectedRowIndex]?.colOffset ?? 0) - 1) || null)"
+                class="w-7 h-7 rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center font-bold">←</button>
+              <span class="flex-1 text-center text-xs font-semibold text-gray-700">
+                {{ selectedSeatRow.rowOverrides?.[selectedRowIndex]?.colOffset ?? 0 }} col.
+              </span>
+              <button @click="setRowOverride(selectedSeatRow, selectedRowIndex, 'colOffset', (selectedSeatRow.rowOverrides?.[selectedRowIndex]?.colOffset ?? 0) + 1)"
+                class="w-7 h-7 rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center font-bold">→</button>
+              <button v-if="selectedSeatRow.rowOverrides?.[selectedRowIndex]?.colOffset"
+                @click="setRowOverride(selectedSeatRow, selectedRowIndex, 'colOffset', null)"
                 class="text-[10px] text-gray-400 hover:text-gray-600 underline">Reset</button>
             </div>
           </div>

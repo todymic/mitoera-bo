@@ -114,10 +114,12 @@ function buildSeats(row) {
 function buildSeatsByRow(row) {
   const all = buildSeats(row);
   const order = (row.rowOrder?.length === row.rows) ? row.rowOrder : Array.from({ length: row.rows }, (_, i) => i);
-  return order.map((dataR) => ({
-    r: dataR,
-    seats: all.filter((s) => s.r === dataR),
-  }));
+  return order.map((dataR) => {
+    const rOver = (row.rowOverrides || {})[dataR] || {};
+    const colOffset = rOver.colOffset ?? 0;
+    const placeholders = Array.from({ length: colOffset }, (_, i) => ({ id: `ph-${dataR}-${i}`, status: 'placeholder' }));
+    return { r: dataR, seats: [...placeholders, ...all.filter((s) => s.r === dataR)] };
+  });
 }
 
 // ---- Canvas dynamic size ----
@@ -430,12 +432,12 @@ watch(
                           minWidth: row.shape === 'rounded' ? ((row.seatSize || 22) * 1.5) + 'px' : (row.seatSize || 22) + 'px',
                           padding: row.shape === 'rounded' ? '0 6px' : '0',
                           borderRadius: row.shape === 'round' ? '50%' : row.shape === 'rounded' ? '10px' : '4px',
-                          visibility: seat.status === 'deleted' ? 'hidden' : 'visible',
+                          visibility: (seat.status === 'deleted' || seat.status === 'placeholder') ? 'hidden' : 'visible',
                           color: seat.status === 'disabled' ? '#9ca3af' : '#fff',
-                          background: seat.status === 'disabled' ? '#eef0f2' : catById(seat.categoryId).color,
+                          background: seat.status === 'disabled' ? '#eef0f2' : (seat.categoryId ? catById(seat.categoryId).color : 'transparent'),
                           border: seat.status === 'disabled' ? '1px solid #d8dade' : 'none',
                         }"
-                        @mouseenter="seat.status !== 'deleted' && onSeatHover($event, row, seat)"
+                        @mouseenter="seat.status !== 'deleted' && seat.status !== 'placeholder' && onSeatHover($event, row, seat)"
                         @mouseleave="onSeatLeave"
                       ></div>
                     </div>
