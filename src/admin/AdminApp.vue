@@ -318,7 +318,7 @@ const navItems = computed(() =>
         </div>
         <!-- Bannière plan manquant — visible sur toutes les pages sauf sandbox -->
         <div v-if="subscriptionLoaded && !hasPlan && !isSandbox"
-          class="sticky top-0 z-20 flex items-center gap-3 bg-orange-500 px-5 py-2.5 shadow-sm shrink-0">
+          class="flex items-center gap-3 bg-orange-500 px-5 py-2.5 shadow-sm shrink-0">
           <svg class="w-4 h-4 text-white shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
           </svg>
