@@ -113,9 +113,10 @@ function buildSeats(row) {
 
 function buildSeatsByRow(row) {
   const all = buildSeats(row);
-  return Array.from({ length: row.rows }, (_, r) => ({
-    r,
-    seats: all.filter((s) => s.r === r),
+  const order = (row.rowOrder?.length === row.rows) ? row.rowOrder : Array.from({ length: row.rows }, (_, i) => i);
+  return order.map((dataR) => ({
+    r: dataR,
+    seats: all.filter((s) => s.r === dataR),
   }));
 }
 

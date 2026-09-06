@@ -175,6 +175,7 @@ function itemShowBadge(item) {
 
 const drag = reactive({ active: false, mode: null, kind: null, id: null, offsetX: 0, offsetY: 0, startW: 0, startH: 0, startX: 0, startY: 0 });
 const pan = reactive({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 });
+const rowReorder = reactive({ active: false, seatRowId: null, displayPos: -1, dataR: -1, targetPos: -1, startY: 0, cellH: 28 });
 
 let panWasDrag = false;
 
@@ -493,14 +494,17 @@ function seatGrid(row) {
 }
 
 // Regroupe les sièges par rangée avec leur label — utilisé pour le rendu row-by-row
+// Respecte rowOrder (permutation) pour le réordonnancement des rangées
 function seatGridByRow(row) {
   const all = seatGrid(row);
   const rowOverrides = row.rowOverrides || {};
-  return Array.from({ length: row.rows }, (_, r) => {
-    const rOver = rowOverrides[r] || {};
-    const naming = { rowFormat: row.rowFormat, rowDirection: row.rowDirection };
-    const rowLabel = rOver.label != null ? rOver.label : computeAxisLabel(r, row.rows, naming.rowFormat, naming.rowDirection);
-    return { r, rowLabel, seats: all.filter((s) => s.r === r) };
+  const order = (row.rowOrder?.length === row.rows)
+    ? row.rowOrder
+    : Array.from({ length: row.rows }, (_, i) => i);
+  return order.map((dataR, displayPos) => {
+    const rOver = rowOverrides[dataR] || {};
+    const rowLabel = rOver.label != null ? rOver.label : computeAxisLabel(dataR, row.rows, row.rowFormat || 'A-Z', row.rowDirection || 'normal');
+    return { r: dataR, displayPos, rowLabel, seats: all.filter((s) => s.r === dataR) };
   });
 }
 
@@ -1103,6 +1107,48 @@ async function stopDrag() {
   scheduleAutoSave();
 }
 
+// ---------- Réordonnancement des rangées à l'intérieur d'un bloc de sièges ----------
+function startRowReorder(ev, row, displayPos, dataR) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  rowReorder.active = true;
+  rowReorder.seatRowId = row.id;
+  rowReorder.displayPos = displayPos;
+  rowReorder.dataR = dataR;
+  rowReorder.targetPos = displayPos;
+  rowReorder.startY = ev.clientY;
+  rowReorder.cellH = (row.seatSize || 22) + 6;
+  window.addEventListener('pointermove', onRowReorderMove);
+  window.addEventListener('pointerup', stopRowReorder);
+}
+
+function onRowReorderMove(ev) {
+  if (!rowReorder.active) return;
+  const row = seatRows.value.find((r) => r.id === rowReorder.seatRowId);
+  if (!row) return;
+  const dy = (ev.clientY - rowReorder.startY) / zoom.value;
+  const shift = Math.round(dy / rowReorder.cellH);
+  rowReorder.targetPos = Math.max(0, Math.min(row.rows - 1, rowReorder.displayPos + shift));
+}
+
+function stopRowReorder() {
+  window.removeEventListener('pointermove', onRowReorderMove);
+  window.removeEventListener('pointerup', stopRowReorder);
+  if (!rowReorder.active) return;
+  const row = seatRows.value.find((r) => r.id === rowReorder.seatRowId);
+  if (row && rowReorder.targetPos !== rowReorder.displayPos) {
+    const base = Array.from({ length: row.rows }, (_, i) => i);
+    const order = [...(row.rowOrder?.length === row.rows ? row.rowOrder : base)];
+    const [moved] = order.splice(rowReorder.displayPos, 1);
+    order.splice(rowReorder.targetPos, 0, moved);
+    row.rowOrder = order;
+    isDirty.value = true;
+    scheduleAutoSave();
+  }
+  rowReorder.active = false;
+  rowReorder.seatRowId = null;
+}
+
 // ---------- Ajout ----------
 async function addZone() {
   if (categories.value.length === 0) return;
@@ -1589,6 +1635,7 @@ async function persistSelected() {
       deletedSeats: r.deletedSeats || [],
       seatLabelOverrides: r.seatLabelOverrides || {},
       rowOverrides: r.rowOverrides || {},
+      rowOrder: r.rowOrder || [],
     }, props.venueId);
   } else if (selectedFreeZone.value) {
     const f = selectedFreeZone.value;
@@ -2937,14 +2984,29 @@ async function saveAll(opts = {}) {
               </div>
               <!-- Rendu rangée par rangée : label à gauche + sièges + label à droite -->
               <div :class="itemShowBadge(row) ? 'lod-blur' : ''" style="display:flex;flex-direction:column;gap:6px;">
-                <div v-for="{ r: rIdx, rowLabel, seats: rowSeats } in seatGridByRow(row)" :key="rIdx"
-                  style="display:flex;align-items:center;gap:6px;"
+                <div v-for="{ r: rIdx, displayPos: dPos, rowLabel, seats: rowSeats } in seatGridByRow(row)" :key="rIdx"
+                  style="display:flex;align-items:center;gap:6px;position:relative;"
                   :style="{
                     background: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx
                       ? catById(row.categoryId).color + '22' : 'transparent',
                     borderRadius: '4px',
+                    opacity: rowReorder.active && rowReorder.seatRowId===row.id && rowReorder.displayPos===dPos ? 0.35 : 1,
+                    outline: rowReorder.active && rowReorder.seatRowId===row.id && rowReorder.targetPos===dPos && rowReorder.displayPos!==dPos
+                      ? '2px dashed ' + catById(row.categoryId).color : 'none',
+                    outlineOffset: '1px',
                   }"
                 >
+                  <!-- Poignée réordonnancement (visible seulement quand le bloc est sélectionné) -->
+                  <div v-if="selected && selected.kind==='seatRow' && selected.id===row.id"
+                    class="shrink-0 flex flex-col items-center justify-center gap-0.5 cursor-grab active:cursor-grabbing"
+                    style="width:8px;padding:2px 0;pointer-events:auto;"
+                    :title="'Glisser pour déplacer la rangée ' + rowLabel"
+                    @pointerdown.stop="startRowReorder($event, row, dPos, rIdx)"
+                  >
+                    <span style="width:6px;height:1.5px;border-radius:1px;background:currentColor;display:block;opacity:0.4;"></span>
+                    <span style="width:6px;height:1.5px;border-radius:1px;background:currentColor;display:block;opacity:0.4;"></span>
+                    <span style="width:6px;height:1.5px;border-radius:1px;background:currentColor;display:block;opacity:0.4;"></span>
+                  </div>
                   <!-- Label rangée GAUCHE -->
                   <div v-if="(row.seatSize || 22) >= 12"
                     class="shrink-0 flex items-center justify-end font-bold leading-none pointer-events-none select-none"
