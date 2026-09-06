@@ -190,7 +190,7 @@ const navItems = computed(() =>
   <div v-else class="min-h-screen flex flex-col bg-gray-100">
 
     <!-- Header -->
-    <header class="h-14 bg-white border-b border-gray-200 flex items-center px-4 sm:px-6 shrink-0 z-10 gap-3">
+    <header class="h-14 bg-white border-b border-gray-200 flex items-center px-4 sm:px-6 shrink-0 z-30 gap-3">
       <div class="flex-1 flex items-center justify-center gap-2">
         <span class="text-lg sm:text-xl font-bold text-gray-900">Mitoera</span>
 
