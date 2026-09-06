@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 
 const TOKEN_KEY = 'bo_jwt';
+const REFRESH_KEY = 'bo_refresh_jwt';
 const MODE_KEY = 'bo_api_mode';
 
 function currentMode() {
@@ -31,8 +32,17 @@ export const auth = {
     auth.loggedIn.value = true;
   },
 
+  getRefreshToken() {
+    return localStorage.getItem(REFRESH_KEY);
+  },
+
+  setRefreshToken(token) {
+    localStorage.setItem(REFRESH_KEY, token);
+  },
+
   clear() {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(MODE_KEY);
     apiMode.value = 'prod';
     auth.loggedIn.value = false;
@@ -56,6 +66,7 @@ export const auth = {
     if (!res.ok) throw new Error('Identifiants invalides');
     const data = await res.json();
     auth.setToken(data.token);
+    if (data.refreshToken) auth.setRefreshToken(data.refreshToken);
     return data;
   },
 
@@ -114,9 +125,24 @@ export async function apiFetch(path, options = {}) {
 
   if (res.status === 401) {
     if (_embedApiKey) throw new Error('SESSION_EXPIRED');
-    if (apiMode.value === 'sandbox') {
-      throw new Error('SANDBOX_UNAVAILABLE');
+    if (apiMode.value === 'sandbox') throw new Error('SANDBOX_UNAVAILABLE');
+
+    const refreshToken = auth.getRefreshToken();
+    if (refreshToken) {
+      const refreshRes = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (refreshRes.ok) {
+        const refreshData = await refreshRes.json();
+        auth.setToken(refreshData.token);
+        auth.setRefreshToken(refreshData.refreshToken);
+        // Rejoue la requête originale avec le nouveau token
+        return apiFetch(path, options);
+      }
     }
+
     auth.clear();
     window.location.href = '/admin/login';
     throw new Error('SESSION_EXPIRED');
