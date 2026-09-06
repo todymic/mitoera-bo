@@ -838,6 +838,15 @@ function startDrag(ev, kind, item) {
   drag.offsetY = (ev.clientY - canvasRect.top)  / z - item.top;
   // Déterminer la zone parente d'un seatRow (pour contraindre le déplacement)
   drag.parentZone = (kind === 'seatRow' && !drag.group) ? findParentZone(item) : null;
+  // Déplacer un bloc emmène les groupes de rangées qui lui sont rattachés
+  const movedIds = drag.group ? drag.group.map((g) => g.id) : [item.id];
+  drag.children = [];
+  for (const mid of movedIds) {
+    for (const c of attachedGroupsOf(mid)) {
+      if (movedIds.includes(c.id)) continue; // déjà déplacé par la sélection multiple
+      drag.children.push({ id: c.id, left: c.left || 0, top: c.top || 0 });
+    }
+  }
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', stopDrag);
 }
@@ -868,6 +877,11 @@ const ROW_GAP = 6;
 function rowTopOffset(row, displayPos) {
   return CARD_INSET + displayPos * ((row.seatSize || 22) + ROW_GAP);
 }
+// Groupes rattachés à un bloc — ils font partie de la section et suivent ses déplacements
+function attachedGroupsOf(rowId) {
+  return seatRows.value.filter((r) => r.isGroup && r.parentRowId === rowId);
+}
+
 function displayOrder(row) {
   return (row.rowOrder?.length === row.rows)
     ? row.rowOrder
@@ -949,8 +963,12 @@ async function attachGroupToSection(group, sectionName, target = null) {
     await adminApi.updateSeatRow(block.id, { rowOverrides: block.rowOverrides }, props.venueId);
   }
 
+  // Le lien parent fait du groupe un membre de la section : il suit le bloc
+  group.parentRowId = block?.id ?? null;
+
   await adminApi.updateSeatRow(group.id, {
     section: group.section,
+    parentRowId: group.parentRowId,
     top: group.top, left: group.left,
     seatSize: Number(group.seatSize), shape: group.shape,
     categoryId: group.categoryId,
@@ -967,7 +985,8 @@ async function attachGroupToSection(group, sectionName, target = null) {
 async function detachGroup(group) {
   if (!group) return;
   group.section = '';
-  await adminApi.updateSeatRow(group.id, { section: '' }, props.venueId);
+  group.parentRowId = null;
+  await adminApi.updateSeatRow(group.id, { section: '', parentRowId: null }, props.venueId);
   isDirty.value = true;
   emit('changed');
 }
@@ -1066,6 +1085,24 @@ function listFor(kind) {
   return seatRows.value;
 }
 
+async function persistDragChildren() {
+  const children = drag.children || [];
+  drag.children = [];
+  for (const c of children) {
+    const o = seatRows.value.find((x) => x.id === c.id);
+    if (o) await persistPosition('seatRow', o);
+  }
+}
+
+// Reporte le déplacement du bloc sur ses groupes rattachés
+function moveDragChildren(dLeft, dTop) {
+  if (!drag.children?.length) return;
+  for (const c of drag.children) {
+    const o = seatRows.value.find((x) => x.id === c.id);
+    if (o) { o.left = Math.max(0, Math.round(c.left + dLeft)); o.top = Math.max(0, Math.round(c.top + dTop)); }
+  }
+}
+
 function onPointerMove(ev) {
   if (!drag.active) return;
   drag.moved = true;
@@ -1087,6 +1124,7 @@ function onPointerMove(ev) {
           const o = listFor(g.kind).find((x) => x.id === g.id);
           if (o) { o.left = Math.round(g.left + dLeft); o.top = Math.round(g.top + dTop); }
         }
+        moveDragChildren(dLeft, dTop);
       } else {
         // Contraindre le seatRow à rester dans sa zone parente
         if (drag.parentZone) {
@@ -1096,6 +1134,8 @@ function onPointerMove(ev) {
           newTop  = Math.max(pz.top  || 0, Math.min((pz.top  || 0) + (pz.height || 70)  - h, newTop));
         }
         item.left = newLeft; item.top = newTop;
+        // Delta réellement appliqué (le clamp de zone parente a pu le réduire)
+        moveDragChildren(item.left - drag.originLeft, item.top - drag.originTop);
       }
     }
     // Détection de survol d'une tableSection lors du drag d'une tableZone (jamais en groupe)
@@ -1207,6 +1247,7 @@ async function stopDrag() {
     hoveredTableSection.value = null;
     hoveredSeatRowTarget.value = null;
     drag.group = null;
+    drag.children = [];
     return;
   }
   isDirty.value = true;
@@ -1220,6 +1261,7 @@ async function stopDrag() {
       const o = listFor(g.kind).find((x) => x.id === g.id);
       if (o) await persistPosition(g.kind, o);
     }
+    await persistDragChildren();
     emit('changed');
     scheduleAutoSave();
     return;
@@ -1272,6 +1314,7 @@ async function stopDrag() {
 
   if (mode === 'move') {
     await persistPosition(kind, item);
+    await persistDragChildren();
   } else if (mode === 'resize') {
     if (kind === 'zone') await adminApi.updateZone(item.id, { width: item.width, height: item.height, top: item.top, left: item.left }, props.venueId);
     else await adminApi.updateFreeZone(item.id, { width: item.width, height: item.height, top: item.top, left: item.left }, props.venueId);
@@ -1780,7 +1823,12 @@ async function persistPosition(kind, item) {
 
 async function deleteObject(kind, id) {
   if (kind === 'zone')              { await adminApi.deleteZone(id, props.venueId);         zones.value         = zones.value.filter((x) => x.id !== id); }
-  else if (kind === 'seatRow')      { await adminApi.deleteSeatRow(id, props.venueId);      seatRows.value      = seatRows.value.filter((x) => x.id !== id); }
+  else if (kind === 'seatRow')      {
+    // Les groupes rattachés redeviennent autonomes plutôt que de pointer dans le vide
+    for (const g of attachedGroupsOf(id)) await detachGroup(g);
+    await adminApi.deleteSeatRow(id, props.venueId);
+    seatRows.value = seatRows.value.filter((x) => x.id !== id);
+  }
   else if (kind === 'freeZone')     { await adminApi.deleteFreeZone(id, props.venueId);     freeZones.value     = freeZones.value.filter((x) => x.id !== id); }
   else if (kind === 'tableZone')    { await adminApi.deleteTableZone(id, props.venueId);    tableZones.value    = tableZones.value.filter((x) => x.id !== id); }
   else if (kind === 'tableSection') { await adminApi.deleteTableSection(id, props.venueId); tableSections.value = tableSections.value.filter((x) => x.id !== id); }
@@ -1858,6 +1906,7 @@ async function persistSelected() {
       rowOverrides: r.rowOverrides || {},
       rowOrder: r.rowOrder || [],
       isGroup: !!r.isGroup,
+      parentRowId: r.parentRowId ?? null,
     }, props.venueId);
   } else if (selectedFreeZone.value) {
     const f = selectedFreeZone.value;
@@ -1962,6 +2011,8 @@ async function removeSelected() {
     zones.value = zones.value.filter((x) => x.id !== z.id);
   } else if (selectedSeatRow.value) {
     const r = selectedSeatRow.value;
+    // Les groupes rattachés redeviennent autonomes plutôt que de pointer dans le vide
+    for (const g of attachedGroupsOf(r.id)) await detachGroup(g);
     await adminApi.deleteSeatRow(r.id, props.venueId);
     seatRows.value = seatRows.value.filter((x) => x.id !== r.id);
   } else if (selectedFreeZone.value) {
