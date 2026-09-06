@@ -1137,8 +1137,15 @@ function onRowReorderMove(ev) {
   if (!rowReorder.active) return;
   const row = seatRows.value.find((r) => r.id === rowReorder.seatRowId);
   if (!row) return;
-  const dx = (ev.clientX - rowReorder.startX) / zoom.value;
-  const dy = (ev.clientY - rowReorder.startY) / zoom.value;
+  const rawDx = (ev.clientX - rowReorder.startX) / zoom.value;
+  const rawDy = (ev.clientY - rowReorder.startY) / zoom.value;
+
+  // Quand le bloc est pivoté à 90°/270° les axes visuels sont inversés :
+  // le mouvement Y de la souris correspond au déplacement latéral des sièges (colOffset)
+  // et le mouvement X correspond à l'empilement des rangées (reorder).
+  const rotated = (row.rotation || 0) % 180 !== 0;
+  const dx = rotated ? rawDy : rawDx;
+  const dy = rotated ? rawDx : rawDy;
 
   if (!rowReorder.directionDecided && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
     rowReorder.direction = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
