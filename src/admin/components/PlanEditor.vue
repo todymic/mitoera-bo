@@ -959,7 +959,8 @@ function snapGroupToRow(group, target) {
   group.seatSize   = target.seatSize || 22;
   group.shape      = target.shape || 'square';
   group.categoryId = target.categoryId;
-  group.rotation   = group.rotation || 0;
+  // Le groupe fait partie de la section : il en prend aussi l'orientation
+  group.rotation   = target.rotation || 0;
 
   // Aligner la 1re rangée du groupe sur celle du bloc, insets compris
   group.top = Math.max(0, Math.round(
@@ -1012,6 +1013,7 @@ async function attachGroupToSection(group, sectionName, target = null) {
     top: group.top, left: group.left,
     seatSize: Number(group.seatSize), shape: group.shape,
     categoryId: group.categoryId,
+    rotation: Number(group.rotation || 0),
     rowOverrides: group.rowOverrides,
   }, props.venueId);
 
