@@ -79,9 +79,22 @@ function onCanvasContextMenu(ev) {
   undoLastPlacement();
 }
 
-// Annule le mode placement si Escape
+// Le champ visé est-il une saisie ? (on ne capte pas les raccourcis dedans)
+function isEditableTarget(el) {
+  if (!el || !el.tagName) return false;
+  const tag = el.tagName.toUpperCase();
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable === true;
+}
+
+// Escape annule le mode placement · Ctrl/Cmd + C / V / D = copier / coller / dupliquer
 function onKeyDown(ev) {
-  if (ev.key === 'Escape' && activeTool.value) { activeTool.value = null; ev.preventDefault(); }
+  if (ev.key === 'Escape' && activeTool.value) { activeTool.value = null; ev.preventDefault(); return; }
+  if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
+  if (isEditableTarget(ev.target)) return;
+  const k = (ev.key || '').toLowerCase();
+  if (k === 'c' && duplicable.value)          { ev.preventDefault(); copySelected(); }
+  else if (k === 'v' && clipboard.value)      { ev.preventDefault(); pasteClipboard(); }
+  else if (k === 'd' && duplicable.value)     { ev.preventDefault(); duplicateSelected(); }
 }
 
 // selected = { kind: 'zone' | 'seatRow' | 'freeZone' | 'seat', id, rowId?, seatId?, seatInfo? }
@@ -922,6 +935,7 @@ async function stopDrag() {
       section: ts.section,
     }, props.venueId);
     emit('changed');
+    scheduleAutoSave();
     return;
   }
   hoveredTableSection.value = null;
@@ -943,6 +957,9 @@ async function stopDrag() {
     await adminApi.updateSeatRow(item.id, { rows: item.rows, cols: item.cols }, props.venueId);
   }
   emit('changed');
+  // Les coordonnées ont muté pendant le pointermove (drag.active bloquait alors
+  // l'auto-save) : on relance explicitement le compte à rebours après le drop.
+  scheduleAutoSave();
 }
 
 // ---------- Ajout ----------
@@ -1077,6 +1094,125 @@ async function addTextLabel(left = 100, top = 100) {
   isDirty.value = true;
   emit('changed');
   return tl;
+}
+
+// ---------- Copier / Coller / Dupliquer ----------
+const KIND_LABELS = {
+  zone: 'Zone', seatRow: 'Bloc de sièges', freeZone: 'Zone libre',
+  tableZone: 'Table', tableSection: 'Section de tables',
+  textLabel: 'Texte', imageLayer: 'Image',
+};
+
+const clipboard = ref(null); // { kind, data, name }
+const pasting = ref(false);
+let pasteCount = 0;          // décalage en cascade des collages successifs
+
+// Élément sélectionné s'il est duplicable (un siège seul ne l'est pas)
+const duplicable = computed(() => {
+  if (selectedZone.value)         return { kind: 'zone',         obj: selectedZone.value };
+  if (selectedSeatRow.value)      return { kind: 'seatRow',      obj: selectedSeatRow.value };
+  if (selectedFreeZone.value)     return { kind: 'freeZone',     obj: selectedFreeZone.value };
+  if (selectedTableZone.value)    return { kind: 'tableZone',    obj: selectedTableZone.value };
+  if (selectedTableSection.value) return { kind: 'tableSection', obj: selectedTableSection.value };
+  if (selectedTextLabel.value)    return { kind: 'textLabel',    obj: selectedTextLabel.value };
+  if (selectedImageLayer.value)   return { kind: 'imageLayer',   obj: selectedImageLayer.value };
+  return null;
+});
+
+function objectName(kind, obj) {
+  return obj.section || obj.label || obj.caption || KIND_LABELS[kind];
+}
+
+// Une copie ne doit jamais réutiliser la même section : les clés de sièges seraient en doublon.
+function uniqueSection(base) {
+  const taken = new Set(
+    [...seatRows.value, ...tableZones.value, ...tableSections.value].map((o) => o.section).filter(Boolean),
+  );
+  let i = 2;
+  while (taken.has(`${base} ${i}`)) i++;
+  return `${base} ${i}`;
+}
+function uniqueLabel(kind, base) {
+  const taken = new Set(listFor(kind).map((o) => o.label).filter(Boolean));
+  if (!taken.has(`${base} (copie)`)) return `${base} (copie)`;
+  let i = 2;
+  while (taken.has(`${base} (copie ${i})`)) i++;
+  return `${base} (copie ${i})`;
+}
+
+function selectByKind(kind, obj) {
+  if (kind === 'zone') selectZone(obj);
+  else if (kind === 'seatRow') selectSeatRow(obj);
+  else if (kind === 'freeZone') selectFreeZone(obj);
+  else if (kind === 'tableZone') selectTableZone(obj);
+  else if (kind === 'tableSection') selectTableSection(obj);
+  else if (kind === 'textLabel') selectTextLabel(obj);
+  else if (kind === 'imageLayer') selectImageLayer(obj);
+}
+
+async function createFromClone(kind, src, dx, dy) {
+  if (pasting.value) return null;
+  pasting.value = true;
+  try {
+    const clone = JSON.parse(JSON.stringify(src));
+    delete clone.id;
+    delete clone.venueId;
+    delete clone._type;
+    clone.left = Math.max(0, Math.round((src.left || 0) + dx));
+    clone.top  = Math.max(0, Math.round((src.top  || 0) + dy));
+    if (clone.section) clone.section = uniqueSection(clone.section);
+    if (clone.label)   clone.label   = uniqueLabel(kind, clone.label);
+    // Les images sont empilées par leur `layer`, pas par le zIndex.
+    if (kind !== 'imageLayer') clone.zIndex = ++zCounter.value;
+
+    let created = null;
+    if (kind === 'zone')              created = await adminApi.createZone(props.venueId, clone);
+    else if (kind === 'seatRow')      created = await adminApi.createSeatRow(props.venueId, clone);
+    else if (kind === 'freeZone')     created = await adminApi.createFreeZone(props.venueId, clone);
+    else if (kind === 'tableZone')    created = await adminApi.createTableZone(props.venueId, clone);
+    else if (kind === 'tableSection') created = await adminApi.createTableSection(props.venueId, clone);
+    else if (kind === 'textLabel')    created = await adminApi.createTextLabel(props.venueId, clone);
+    else if (kind === 'imageLayer')   created = await adminApi.createImageLayer(props.venueId, clone);
+    if (!created) return null;
+
+    listFor(kind).push(created);
+    selectByKind(kind, created);
+    isDirty.value = true;
+    emit('changed');
+    return created;
+  } catch (e) {
+    showToast(`Copie impossible : ${e.message}`, 'error', 4000);
+    return null;
+  } finally {
+    pasting.value = false;
+  }
+}
+
+function copySelected() {
+  const sel = duplicable.value;
+  if (!sel) return;
+  clipboard.value = {
+    kind: sel.kind,
+    data: JSON.parse(JSON.stringify(sel.obj)),
+    name: objectName(sel.kind, sel.obj),
+  };
+  pasteCount = 0;
+  showToast(`${KIND_LABELS[sel.kind]} « ${clipboard.value.name} » copié`, 'info', 2000);
+}
+
+async function pasteClipboard() {
+  if (!clipboard.value || pasting.value) return;
+  pasteCount += 1;
+  const off = 24 * pasteCount;
+  const created = await createFromClone(clipboard.value.kind, clipboard.value.data, off, off);
+  if (created) showToast(`${KIND_LABELS[clipboard.value.kind]} collé`, 'success', 2000);
+}
+
+async function duplicateSelected() {
+  const sel = duplicable.value;
+  if (!sel || pasting.value) return;
+  const created = await createFromClone(sel.kind, sel.obj, 24, 24);
+  if (created) showToast(`${KIND_LABELS[sel.kind]} dupliqué`, 'success', 2000);
 }
 
 // ---------- Édition via panneau latéral ----------
@@ -1466,6 +1602,7 @@ async function bulkSetDisabled(disabled) {
     ts.disabledSeats = [...list];
     await adminApi.updateTableSection(tsId, { disabledSeats: ts.disabledSeats }, props.venueId);
   }
+  isDirty.value = true;
   emit('changed');
 }
 
@@ -1491,6 +1628,7 @@ async function bulkChangeCategory() {
     row.categoryOverrides = overrides;
     await adminApi.updateSeatRow(rowId, { categoryOverrides: overrides }, props.venueId);
   }
+  isDirty.value = true;
   emit('changed');
 }
 
@@ -1515,10 +1653,14 @@ async function saveName() {
   savingName.value = false;
 }
 
+// Armé par la première modification faite par l'utilisateur dans cette session :
+// évite qu'ouvrir un plan déjà « en attente » déclenche une publication toute seule.
+const autoSaveArmed = ref(false);
+
 const _isDirtyFlag = ref(props.planPendingChanges);
 const isDirty = computed({
   get: () => _isDirtyFlag.value || pendingCatDeletions.size > 0,
-  set: (v) => { _isDirtyFlag.value = v; },
+  set: (v) => { _isDirtyFlag.value = v; if (v) autoSaveArmed.value = true; },
 });
 
 watch(() => props.planPendingChanges, (v) => {
@@ -1536,6 +1678,9 @@ watch(() => props.planStatus, (s) => { activePlanStatus.value = s; }, { immediat
 watch(() => props.venueId,    (id) => { activePlanId.value = id; },   { immediate: true });
 
 onBeforeUnmount(() => {
+  clearTimeout(autoSaveTimer);
+  clearTimeout(saveTimer);
+  clearTimeout(toastTimer);
   activePlanId.value     = null;
   activePlanDirty.value  = false;
   activePlanStatus.value = null;
@@ -1543,15 +1688,67 @@ onBeforeUnmount(() => {
 
 const showPreview = ref(false);
 
+// ---------- Auto-sauvegarde ----------
+const AUTOSAVE_DELAY = 2000;
+const AUTOSAVE_STORAGE_KEY = 'mitoera.editor.autosave';
+const autoSaveEnabled = ref(localStorage.getItem(AUTOSAVE_STORAGE_KEY) !== 'off');
+const autoSaving = ref(false);
+let autoSaveTimer = null;
 
-async function saveAll() {
-  if (!canSave.value) return;
+function autoSaveReady() {
+  return autoSaveEnabled.value && autoSaveArmed.value
+    && !loading.value && !saving.value && !drag.active && !pasting.value
+    && isDirty.value && canSave.value;
+}
+
+function scheduleAutoSave() {
+  clearTimeout(autoSaveTimer);
+  if (!autoSaveReady()) return;
+  autoSaveTimer = setTimeout(() => {
+    if (!autoSaveReady()) return;
+    saveAll({ auto: true });
+  }, AUTOSAVE_DELAY);
+}
+
+function toggleAutoSave() {
+  autoSaveEnabled.value = !autoSaveEnabled.value;
+  localStorage.setItem(AUTOSAVE_STORAGE_KEY, autoSaveEnabled.value ? 'on' : 'off');
+  if (autoSaveEnabled.value) {
+    scheduleAutoSave();
+    showToast('Auto-sauvegarde activée', 'info', 2000);
+  } else {
+    clearTimeout(autoSaveTimer);
+    showToast('Auto-sauvegarde désactivée', 'info', 2000);
+  }
+}
+
+// Toute mutation locale (drag, panneau, ajout/suppression, catégories) relance le compte à rebours.
+watch(
+  () => [
+    zones.value, seatRows.value, freeZones.value, tableZones.value,
+    tableSections.value, textLabels.value, imageLayers.value, categories.value,
+    pendingCatDeletions.size, isDirty.value, canSave.value, autoSaveEnabled.value,
+  ],
+  scheduleAutoSave,
+  { deep: true },
+);
+
+
+async function saveAll(opts = {}) {
+  const auto = opts && opts.auto === true;
+  if (!canSave.value || saving.value) return;
+  clearTimeout(autoSaveTimer);
   saveError.value = '';
   saveSuccess.value = false;
   saving.value = true;
+  autoSaving.value = auto;
   try {
     const activeCats = categories.value.filter(c => !pendingCatDeletions.has(c.id));
-    await adminApi.saveAllObjects(props.venueId, zones.value, seatRows.value, freeZones.value, activeCats, tableZones.value, tableSections.value);
+    // textLabels / imageLayers doivent être transmis : le PUT /objects remplace la liste complète.
+    await adminApi.saveAllObjects(
+      props.venueId, zones.value, seatRows.value, freeZones.value, activeCats,
+      tableZones.value, tableSections.value, textLabels.value, imageLayers.value,
+    );
     await Promise.all([
       adminApi.publishVenue(props.venueId),
       adminApi.updateVenueStatus(props.venueId, 'published'),
@@ -1560,12 +1757,15 @@ async function saveAll() {
     await flushPendingCatDeletions();
     saveSuccess.value = true;
     isDirty.value = false;
+    // Désarmé jusqu'à la prochaine modification : pas de boucle de republication.
+    autoSaveArmed.value = false;
     emit('changed');
     setTimeout(() => { saveSuccess.value = false; }, 2500);
   } catch (e) {
     saveError.value = e.message;
   } finally {
     saving.value = false;
+    autoSaving.value = false;
   }
 }
 </script>
@@ -1763,8 +1963,22 @@ async function saveAll() {
               'bg-gray-100 text-gray-500':    props.planStatus === 'archived',
             }"
           >{{ { draft: 'Brouillon', published: 'Publié', archived: 'Archivé' }[props.planStatus] }}</span>
-          <span v-if="isDirty" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-600 shrink-0 hidden sm:inline">
-            Modif. non sauvegardées
+          <!-- État de sauvegarde -->
+          <span v-if="autoSaving" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 shrink-0 flex items-center gap-1">
+            <svg class="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"/>
+              <path d="M21 12a9 9 0 00-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+            <span class="hidden sm:inline">Enregistrement…</span>
+          </span>
+          <span v-else-if="saveSuccess" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-600 shrink-0 flex items-center gap-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="hidden sm:inline">Enregistré</span>
+          </span>
+          <span v-else-if="isDirty" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-600 shrink-0 hidden sm:inline">
+            {{ autoSaveEnabled ? 'Enregistrement en attente…' : 'Modif. non sauvegardées' }}
           </span>
         </div>
         <!-- Nom du plan -->
@@ -1863,8 +2077,22 @@ async function saveAll() {
         </Teleport>
 
         <div class="flex gap-1.5 ml-auto shrink-0">
+          <!-- Auto-sauvegarde -->
+          <button @click="toggleAutoSave"
+            :title="autoSaveEnabled
+              ? 'Auto-sauvegarde activée — le plan est publié automatiquement dès qu’il est valide. Cliquez pour désactiver.'
+              : 'Auto-sauvegarde désactivée — cliquez pour l’activer.'"
+            class="text-xs font-semibold rounded-lg flex items-center gap-1.5 px-2 py-1.5 transition"
+            :class="autoSaveEnabled
+              ? 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200 hover:bg-emerald-100'
+              : 'bg-gray-100 text-gray-400 hover:bg-gray-200'">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            <span class="hidden md:inline whitespace-nowrap">Auto</span>
+          </button>
           <!-- Publier -->
-          <button :disabled="saving || !canSave" @click="saveAll" title="Publier"
+          <button :disabled="saving || !canSave" @click="saveAll()" title="Publier"
             class="text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5 px-2 py-1.5 sm:px-3"
             :title="!canSave ? 'Corrigez les anomalies avant de publier' : 'Publier'">
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
@@ -2374,6 +2602,52 @@ async function saveAll() {
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
           </svg>
         </button>
+      </div>
+
+      <!-- Presse-papiers : copier / dupliquer / coller l'objet sélectionné -->
+      <div class="mb-3 pb-3 border-b border-gray-100">
+        <div class="grid grid-cols-3 gap-1">
+          <button @click="copySelected" :disabled="!duplicable"
+            title="Copier l'objet sélectionné (Ctrl/Cmd + C)"
+            class="flex flex-col items-center justify-center gap-1 py-2 rounded-lg text-[10px] font-semibold transition
+                   bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900
+                   disabled:opacity-40 disabled:hover:bg-gray-100 disabled:hover:text-gray-600 disabled:cursor-not-allowed">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+              <rect x="9" y="9" width="11" height="11" rx="2"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 15H4a1 1 0 01-1-1V5a2 2 0 012-2h9a1 1 0 011 1v1"/>
+            </svg>
+            Copier
+          </button>
+          <button @click="duplicateSelected" :disabled="!duplicable || pasting"
+            title="Dupliquer sur place (Ctrl/Cmd + D)"
+            class="flex flex-col items-center justify-center gap-1 py-2 rounded-lg text-[10px] font-semibold transition
+                   bg-indigo-50 text-indigo-600 hover:bg-indigo-100
+                   disabled:opacity-40 disabled:hover:bg-indigo-50 disabled:cursor-not-allowed">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+              <rect x="9" y="9" width="11" height="11" rx="2"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 15H4a1 1 0 01-1-1V5a2 2 0 012-2h9a1 1 0 011 1v1"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.5 12v5M12 14.5h5"/>
+            </svg>
+            Dupliquer
+          </button>
+          <button @click="pasteClipboard" :disabled="!clipboard || pasting"
+            title="Coller (Ctrl/Cmd + V)"
+            class="flex flex-col items-center justify-center gap-1 py-2 rounded-lg text-[10px] font-semibold transition
+                   bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900
+                   disabled:opacity-40 disabled:hover:bg-gray-100 disabled:hover:text-gray-600 disabled:cursor-not-allowed">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 4h6a1 1 0 011 1v1H8V5a1 1 0 011-1z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 6H6a2 2 0 00-2 2v11a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2h-2"/>
+            </svg>
+            Coller
+          </button>
+        </div>
+        <p v-if="clipboard" class="mt-1.5 text-[10px] text-gray-400 truncate">
+          Presse-papiers : <span class="font-semibold text-gray-500">{{ clipboard.name }}</span>
+        </p>
+        <p v-else class="mt-1.5 text-[10px] text-gray-300">
+          Sélectionnez un objet puis Ctrl/Cmd + C · V · D
+        </p>
       </div>
 
       <!-- Blocked deletion warning -->
