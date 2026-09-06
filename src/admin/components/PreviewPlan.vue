@@ -422,23 +422,13 @@ watch(
                 <!-- Rendu rangée par rangée pour respecter les overrides par rangée -->
                 <div :class="isLod ? 'lod-blur' : ''" class="flex flex-col gap-1.5">
                   <template v-for="rowGroup in buildSeatsByRow(row)" :key="rowGroup.r">
-                    <div class="flex gap-1.5" style="position:relative;align-items:center;">
-                      <!-- Libellés de rangée, positionnés hors flux comme dans l'éditeur :
-                           dans le flux ils décaleraient les sièges et le plan ne serait plus fidèle -->
+                    <div class="flex gap-1.5" style="align-items:center;">
+                      <!-- Libellé de rangée GAUCHE — dans le flux, comme dans l'éditeur :
+                           c'est ce décalage de 16px + 6px qui doit être reproduit ici,
+                           sinon les sièges ne tombent pas au même endroit que sur le plan. -->
                       <div v-if="!row.isGroup && (row.seatSize || 22) >= 12"
-                        class="flex items-center justify-end font-bold leading-none select-none"
+                        class="shrink-0 flex items-center justify-end font-bold leading-none select-none"
                         :style="{
-                          position: 'absolute', right: '100%', marginRight: '6px',
-                          top: '50%', transform: 'translateY(-50%)',
-                          width: '16px', opacity: 0.6,
-                          fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
-                          color: catById(row.categoryId).color,
-                        }">{{ rowGroup.rowLabel }}</div>
-                      <div v-if="!row.isGroup && (row.seatSize || 22) >= 12"
-                        class="flex items-center justify-start font-bold leading-none select-none"
-                        :style="{
-                          position: 'absolute', left: '100%', marginLeft: '6px',
-                          top: '50%', transform: 'translateY(-50%)',
                           width: '16px', opacity: 0.6,
                           fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
                           color: catById(row.categoryId).color,
@@ -463,6 +453,14 @@ watch(
                         @mouseenter="seat.status !== 'deleted' && seat.status !== 'placeholder' && onSeatHover($event, row, seat)"
                         @mouseleave="onSeatLeave"
                       ></div>
+                      <!-- Libellé de rangée DROITE — dans le flux également -->
+                      <div v-if="!row.isGroup && (row.seatSize || 22) >= 12"
+                        class="shrink-0 flex items-center justify-start font-bold leading-none select-none"
+                        :style="{
+                          width: '16px', opacity: 0.6,
+                          fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
+                          color: catById(row.categoryId).color,
+                        }">{{ rowGroup.rowLabel }}</div>
                     </div>
                   </template>
                 </div>
