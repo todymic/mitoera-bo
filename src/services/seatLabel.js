@@ -47,9 +47,9 @@ export const DIRECTIONS = [
   { id: 'reversed', label: 'Inversé (décroissant)' },
 ];
 
-// index: position 0-based · total: nombre total d'éléments sur cet axe
-function sequenceValue(format, index, total, direction) {
-  const i = direction === 'reversed' ? Math.max(0, total - 1 - index) : index;
+// index: position 0-based · total: nombre total d'éléments sur cet axe · startAt: décalage 0-based
+function sequenceValue(format, index, total, direction, startAt = 0) {
+  const i = (direction === 'reversed' ? Math.max(0, total - 1 - index) : index) + startAt;
   switch (format) {
     case 'A-Z': return toLetters(i, true);
     case 'a-z': return toLetters(i, false);
@@ -59,8 +59,13 @@ function sequenceValue(format, index, total, direction) {
   }
 }
 
-export function computeAxisLabel(index, total, format, direction) {
-  return sequenceValue(format, index, total, direction);
+export function computeAxisLabel(index, total, format, direction, startAt = 0) {
+  return sequenceValue(format, index, total, direction, startAt);
+}
+
+// Retourne le premier label visible pour un axe donné (utile pour afficher "démarre à" dans l'UI)
+export function firstAxisLabel(format, direction, startAt = 0) {
+  return sequenceValue(format, 0, 1, direction, startAt);
 }
 
 /**

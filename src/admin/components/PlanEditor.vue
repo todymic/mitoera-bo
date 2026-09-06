@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { adminApi } from '../services/adminApi';
-import { computeSeatLabel, computeAxisLabel, ROW_FORMATS, COL_FORMATS, DIRECTIONS } from '../../services/seatLabel';
+import { computeSeatLabel, computeAxisLabel, firstAxisLabel, ROW_FORMATS, COL_FORMATS, DIRECTIONS } from '../../services/seatLabel';
 import { FREE_ZONE_ICONS, FREE_ZONE_PATTERNS, iconById, patternStyle } from '../../services/icons';
 import PreviewPlan from './PreviewPlan.vue';
 import { activePlanId, activePlanDirty, activePlanStatus } from '../services/activePlan.js';
@@ -465,16 +465,20 @@ function seatGrid(row) {
   const deletedSeats  = row.deletedSeats  || [];
   const overrides = row.categoryOverrides || {};
   const labelOverrides = row.seatLabelOverrides || {};
+  const rowOverrides = row.rowOverrides || {};
   const section = row.section || row.label || row.id;
   for (let r = 0; r < row.rows; r++) {
-    for (let c = 0; c < row.cols; c++) {
+    const rOver = rowOverrides[r] || {};
+    const rowCols     = rOver.cols      != null ? rOver.cols      : row.cols;
+    const colStartAt  = rOver.colStartAt != null ? rOver.colStartAt : 0;
+    const rowLabel    = rOver.label     != null ? rOver.label     : computeAxisLabel(r, row.rows, naming.rowFormat, naming.rowDirection);
+    for (let c = 0; c < rowCols; c++) {
       const posKey = `${r}-${c}`;
       const isDeleted  = deletedSeats.includes(posKey);
       const isDisabled = !isDeleted && disabledSeats.includes(posKey);
-      const rowLabel = computeAxisLabel(r, row.rows, naming.rowFormat, naming.rowDirection);
-      const colLabel = computeAxisLabel(c, row.cols, naming.colFormat, naming.colDirection);
+      const colLabel = computeAxisLabel(c, rowCols, naming.colFormat, naming.colDirection, colStartAt);
       const key = `${section}-${rowLabel}-${colLabel}`;
-      const computedLabel = computeSeatLabel(r, c, row.rows, row.cols, naming);
+      const computedLabel = `${rowLabel}${colLabel}`;
       seats.push({
         key, r, c, posKey,
         rowLabel, colLabel,
@@ -486,6 +490,18 @@ function seatGrid(row) {
     }
   }
   return seats;
+}
+
+// Regroupe les sièges par rangée avec leur label — utilisé pour le rendu row-by-row
+function seatGridByRow(row) {
+  const all = seatGrid(row);
+  const rowOverrides = row.rowOverrides || {};
+  return Array.from({ length: row.rows }, (_, r) => {
+    const rOver = rowOverrides[r] || {};
+    const naming = { rowFormat: row.rowFormat, rowDirection: row.rowDirection };
+    const rowLabel = rOver.label != null ? rOver.label : computeAxisLabel(r, row.rows, naming.rowFormat, naming.rowDirection);
+    return { r, rowLabel, seats: all.filter((s) => s.r === r) };
+  });
 }
 
 function tableSeats(t) {
@@ -653,7 +669,13 @@ function selectAnomalyItem(anomaly, item = null) {
 const canSave = computed(() => anomalies.value.length === 0);
 
 const selectedZone = computed(() => selected.value?.kind === 'zone' ? zones.value.find((z) => z.id === selected.value.id) : null);
-const selectedSeatRow = computed(() => selected.value?.kind === 'seatRow' ? seatRows.value.find((r) => r.id === selected.value.id) : null);
+const selectedSeatRow = computed(() => {
+  if (selected.value?.kind === 'seatRow')    return seatRows.value.find((r) => r.id === selected.value.id) ?? null;
+  if (selected.value?.kind === 'seatRowRow') return seatRows.value.find((r) => r.id === selected.value.rowId) ?? null;
+  return null;
+});
+// Index de la rangée sélectionnée dans le bloc (-1 si le bloc entier est sélectionné)
+const selectedRowIndex = computed(() => selected.value?.kind === 'seatRowRow' ? selected.value.r : -1);
 const selectedFreeZone = computed(() => selected.value?.kind === 'freeZone' ? freeZones.value.find((f) => f.id === selected.value.id) : null);
 const selectedTableZone = computed(() => selected.value?.kind === 'tableZone' ? tableZones.value.find((t) => t.id === selected.value.id) : null);
 const selectedTableSection = computed(() => selected.value?.kind === 'tableSection' ? tableSections.value.find((ts) => ts.id === selected.value.id) : null);
@@ -706,15 +728,29 @@ function selectTableSeat(t, seat) {
 }
 function deselect() { selected.value = null; multiSelected.clear(); selectedObjects.clear(); }
 
-// ---------- Clic sur un siège : sélection simple ou multiple (Ctrl/Cmd ou Shift) ----------
+// ---------- Clic sur un siège : sélectionne toute la rangée ----------
 function onSeatClick(row, seat, ev) {
   if (ev.ctrlKey || ev.metaKey || ev.shiftKey) {
+    // Multi-sélection : on garde le comportement siège-par-siège
     selected.value = null;
     const key = `${row.id}|${seat.posKey}`;
     if (multiSelected.has(key)) multiSelected.delete(key); else multiSelected.add(key);
   } else {
-    selectSeat(row, seat);
+    // Sélectionne toute la rangée (même r) pour l'édition
+    selected.value = { kind: 'seatRowRow', rowId: row.id, r: seat.r };
+    multiSelected.clear();
   }
+}
+// Helper : lire/écrire un champ dans rowOverrides[r]
+function setRowOverride(row, r, field, value) {
+  if (!row.rowOverrides) row.rowOverrides = {};
+  if (!row.rowOverrides[r]) row.rowOverrides[r] = {};
+  if (value === '' || value === undefined || value === null) {
+    delete row.rowOverrides[r][field];
+  } else {
+    row.rowOverrides[r][field] = value;
+  }
+  scheduleSave();
 }
 function isMultiSelected(row, seat) {
   return multiSelected.has(`${row.id}|${seat.posKey}`);
@@ -1528,6 +1564,7 @@ async function persistSelected() {
       badgeVisible: !!r.badgeVisible,
       deletedSeats: r.deletedSeats || [],
       seatLabelOverrides: r.seatLabelOverrides || {},
+      rowOverrides: r.rowOverrides || {},
     }, props.venueId);
   } else if (selectedFreeZone.value) {
     const f = selectedFreeZone.value;
@@ -2874,31 +2911,58 @@ async function saveAll(opts = {}) {
                 }">
                 {{ row.section || catById(row.categoryId).name }}
               </div>
-              <div class="grid gap-1.5"
-                :class="itemShowBadge(row) ? 'lod-blur' : ''"
-                :style="{ gridTemplateColumns: `repeat(${row.cols}, minmax(${row.shape === 'rounded' ? (row.seatSize || 22) * 1.5 : (row.seatSize || 22)}px, auto))` }">
-                <div
-                  v-for="seat in seatGrid(row)" :key="seat.key"
-                  class="flex items-center justify-center text-white font-semibold leading-none"
-                  :class="seat.status === 'deleted' ? '' : 'cursor-pointer'"
+              <!-- Rendu rangée par rangée : label à gauche + sièges + label à droite -->
+              <div :class="itemShowBadge(row) ? 'lod-blur' : ''" style="display:flex;flex-direction:column;gap:6px;">
+                <div v-for="{ r: rIdx, rowLabel, seats: rowSeats } in seatGridByRow(row)" :key="rIdx"
+                  style="display:flex;align-items:center;gap:6px;"
                   :style="{
-                    height: (row.seatSize || 22) + 'px',
-                    minWidth: row.shape === 'rounded' ? ((row.seatSize || 22) * 1.5) + 'px' : (row.seatSize || 22) + 'px',
-                    padding: row.shape === 'rounded' ? '0 6px' : '0',
-                    fontSize: Math.max(6, Math.floor((row.seatSize || 22) * 0.42)) + 'px',
-                    borderRadius: row.shape === 'round' ? '50%' : row.shape === 'rounded' ? '10px' : '4px',
-                    visibility: seat.status === 'deleted' ? 'hidden' : 'visible',
-                    background: seat.status === 'sold' ? '#9ca3af' : seat.status === 'disabled' ? '#eef0f2' : catById(seat.categoryId).color,
-                    color: seat.status === 'disabled' ? '#9ca3af' : '#fff',
-                    opacity: seat.status === 'sold' ? 0.55 : 1,
-                    border: seat.status === 'disabled' ? '1px solid #d8dade' : 'none',
-                    outline: selected && selected.kind==='seat' && selected.seatId===seat.key ? '2px solid #111' : isMultiSelected(row, seat) ? '2px solid #3b82f6' : 'none',
-                    outlineOffset: '1px',
-                    pointerEvents: seat.status === 'deleted' ? 'none' : 'auto',
+                    background: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx
+                      ? catById(row.categoryId).color + '22' : 'transparent',
+                    borderRadius: '4px',
                   }"
-                  @pointerdown.stop
-                  @click.stop="onSeatClick(row, seat, $event)"
-                >{{ (row.seatSize || 22) >= 14 && seat.status !== 'deleted' ? seat.label : '' }}</div>
+                >
+                  <!-- Label rangée GAUCHE -->
+                  <div v-if="(row.seatSize || 22) >= 12"
+                    class="shrink-0 flex items-center justify-end font-bold leading-none pointer-events-none select-none"
+                    :style="{
+                      width: '16px',
+                      fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
+                      color: catById(row.categoryId).color,
+                      opacity: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx ? 1 : 0.6,
+                    }">{{ rowLabel }}</div>
+                  <!-- Sièges -->
+                  <div
+                    v-for="seat in rowSeats" :key="seat.key"
+                    class="flex items-center justify-center text-white font-semibold leading-none"
+                    :class="seat.status === 'deleted' ? '' : 'cursor-pointer'"
+                    :style="{
+                      height: (row.seatSize || 22) + 'px',
+                      minWidth: row.shape === 'rounded' ? ((row.seatSize || 22) * 1.5) + 'px' : (row.seatSize || 22) + 'px',
+                      padding: row.shape === 'rounded' ? '0 6px' : '0',
+                      fontSize: Math.max(6, Math.floor((row.seatSize || 22) * 0.42)) + 'px',
+                      borderRadius: row.shape === 'round' ? '50%' : row.shape === 'rounded' ? '10px' : '4px',
+                      visibility: seat.status === 'deleted' ? 'hidden' : 'visible',
+                      background: seat.status === 'sold' ? '#9ca3af' : seat.status === 'disabled' ? '#eef0f2' : catById(seat.categoryId).color,
+                      color: seat.status === 'disabled' ? '#9ca3af' : '#fff',
+                      opacity: seat.status === 'sold' ? 0.55 : 1,
+                      border: seat.status === 'disabled' ? '1px solid #d8dade' : 'none',
+                      outline: isMultiSelected(row, seat) ? '2px solid #3b82f6' : 'none',
+                      outlineOffset: '1px',
+                      pointerEvents: seat.status === 'deleted' ? 'none' : 'auto',
+                    }"
+                    @pointerdown.stop
+                    @click.stop="onSeatClick(row, seat, $event)"
+                  >{{ (row.seatSize || 22) >= 14 && seat.status !== 'deleted' ? seat.colLabel : '' }}</div>
+                  <!-- Label rangée DROITE -->
+                  <div v-if="(row.seatSize || 22) >= 12"
+                    class="shrink-0 flex items-center justify-start font-bold leading-none pointer-events-none select-none"
+                    :style="{
+                      width: '16px',
+                      fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
+                      color: catById(row.categoryId).color,
+                      opacity: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx ? 1 : 0.6,
+                    }">{{ rowLabel }}</div>
+                </div>
               </div>
             </div>
 
@@ -3565,11 +3629,56 @@ async function saveAll(opts = {}) {
           </div>
         </div>
 
+        <!-- Propriétés de la rangée sélectionnée -->
+        <div v-if="selectedRowIndex >= 0" class="border border-indigo-100 bg-indigo-50 rounded-lg p-3 flex flex-col gap-3">
+          <p class="text-xs font-bold text-indigo-700">
+            Rangée
+            <strong>{{ (selectedSeatRow.rowOverrides?.[selectedRowIndex]?.label != null ? selectedSeatRow.rowOverrides[selectedRowIndex].label : computeAxisLabel(selectedRowIndex, selectedSeatRow.rows, selectedSeatRow.rowFormat || 'A-Z', selectedSeatRow.rowDirection || 'normal')) }}</strong>
+            sélectionnée
+          </p>
+          <div>
+            <label class="text-[11px] text-gray-500">Label de la rangée (laissez vide = automatique)</label>
+            <input
+              :value="selectedSeatRow.rowOverrides?.[selectedRowIndex]?.label ?? ''"
+              @input="setRowOverride(selectedSeatRow, selectedRowIndex, 'label', $event.target.value || null)"
+              :placeholder="computeAxisLabel(selectedRowIndex, selectedSeatRow.rows, selectedSeatRow.rowFormat || 'A-Z', selectedSeatRow.rowDirection || 'normal')"
+              class="w-full mt-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white" />
+          </div>
+          <div>
+            <label class="text-[11px] text-gray-500">Nombre de sièges dans cette rangée</label>
+            <input
+              :value="selectedSeatRow.rowOverrides?.[selectedRowIndex]?.cols ?? selectedSeatRow.cols"
+              @input="setRowOverride(selectedSeatRow, selectedRowIndex, 'cols', Number($event.target.value) || null)"
+              type="number" min="1" max="200"
+              class="w-full mt-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white" />
+          </div>
+          <div>
+            <label class="text-[11px] text-gray-500">
+              Numérotation démarre à
+              <span class="text-indigo-500 font-semibold">(actuellement : {{ firstAxisLabel(selectedSeatRow.colFormat || '1-9', selectedSeatRow.colDirection || 'normal', selectedSeatRow.rowOverrides?.[selectedRowIndex]?.colStartAt ?? 0) }})</span>
+            </label>
+            <div class="flex items-center gap-2 mt-1">
+              <button @click="setRowOverride(selectedSeatRow, selectedRowIndex, 'colStartAt', Math.max(0, (selectedSeatRow.rowOverrides?.[selectedRowIndex]?.colStartAt ?? 0) - 1))"
+                class="w-7 h-7 rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center text-sm font-bold">−</button>
+              <span class="flex-1 text-center text-xs font-semibold text-gray-700">
+                {{ firstAxisLabel(selectedSeatRow.colFormat || '1-9', selectedSeatRow.colDirection || 'normal', selectedSeatRow.rowOverrides?.[selectedRowIndex]?.colStartAt ?? 0) }}
+              </span>
+              <button @click="setRowOverride(selectedSeatRow, selectedRowIndex, 'colStartAt', (selectedSeatRow.rowOverrides?.[selectedRowIndex]?.colStartAt ?? 0) + 1)"
+                class="w-7 h-7 rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center text-sm font-bold">+</button>
+              <button v-if="selectedSeatRow.rowOverrides?.[selectedRowIndex]?.colStartAt"
+                @click="setRowOverride(selectedSeatRow, selectedRowIndex, 'colStartAt', 0)"
+                class="text-[10px] text-gray-400 hover:text-gray-600 underline">Reset</button>
+            </div>
+          </div>
+          <button @click="selected.value = { kind: 'seatRow', id: selectedSeatRow.id }; scheduleSave()"
+            class="text-[10px] text-indigo-500 hover:underline text-left">← Propriétés du bloc entier</button>
+        </div>
+
         <p class="text-xs text-gray-400">
           {{ Number(selectedSeatRow.rows) * Number(selectedSeatRow.cols) || 0 }} sièges · aperçu :
-          <strong>{{ computeSeatLabel(0, 0, selectedSeatRow.rows, selectedSeatRow.cols, selectedSeatRow) }}</strong>…
+          <strong>{{ computeAxisLabel(0, selectedSeatRow.rows, selectedSeatRow.rowFormat || 'A-Z', selectedSeatRow.rowDirection || 'normal') }}{{ computeAxisLabel(0, selectedSeatRow.cols, selectedSeatRow.colFormat || '1-9', selectedSeatRow.colDirection || 'normal') }}</strong>…
         </p>
-        <p class="text-[11px] text-gray-300">Astuce : tirez le bord gauche/droit du bloc pour ajouter/retirer des sièges par rang, et le bord haut/bas pour ajouter/retirer des rangées. Ctrl/Cmd-clic ou Maj-clic sur plusieurs sièges pour une action groupée.</p>
+        <p class="text-[11px] text-gray-300">Cliquez sur un siège pour sélectionner sa rangée et la configurer. Tirez le bord du bloc pour ajouter/retirer des sièges.</p>
         <button @click="removeSelected" class="w-full mt-2 py-2 rounded-lg bg-red-50 text-red-500 text-sm font-semibold hover:bg-red-100">
           Supprimer ce bloc
         </button>
