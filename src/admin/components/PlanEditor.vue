@@ -938,6 +938,51 @@ function rowStartAt(row, dataR) {
   const ov = (row.rowOverrides || {})[dataR] || {};
   return ov.colStartAt != null ? ov.colStartAt : 0;
 }
+// Clés de sièges produites par un bloc — mêmes formules que seatGrid()
+function seatRowKeys(row) {
+  const section = row.section || row.label || row.id;
+  const disabled = row.disabledSeats || [];
+  const deleted  = row.deletedSeats  || [];
+  const keys = [];
+  for (let r = 0; r < (row.rows || 1); r++) {
+    const label = rowLabelAt(row, r);
+    const cols  = rowColsAt(row, r);
+    const start = rowStartAt(row, r);
+    for (let c = 0; c < cols; c++) {
+      const pk = `${r}-${c}`;
+      if (disabled.includes(pk) || deleted.includes(pk)) continue;
+      keys.push(`${section}-${label}-${computeAxisLabel(c, cols, row.colFormat, row.colDirection, start)}`);
+    }
+  }
+  return keys;
+}
+
+// Une section peut contenir plusieurs blocs : le libellé repris à la rangée
+// d'en face peut donc entrer en collision avec un AUTRE bloc de la section.
+// On décale la numérotation du groupe jusqu'à ce que ses clés soient libres.
+function resolveGroupKeyCollisions(group) {
+  const section = group.section || group.label || group.id;
+  const taken = new Set();
+  for (const r of seatRows.value) {
+    if (r.id === group.id) continue;
+    if ((r.section || r.label || r.id) !== section) continue;
+    for (const k of seatRowKeys(r)) taken.add(k);
+  }
+  for (let k = 0; k < (group.rows || 1); k++) {
+    for (let guard = 0; guard < 200; guard++) {
+      const cols  = rowColsAt(group, k);
+      const start = rowStartAt(group, k);
+      const label = rowLabelAt(group, k);
+      const keys = [];
+      for (let c = 0; c < cols; c++) {
+        keys.push(`${section}-${label}-${computeAxisLabel(c, cols, group.colFormat, group.colDirection, start)}`);
+      }
+      if (!keys.some((x) => taken.has(x))) { keys.forEach((x) => taken.add(x)); break; }
+      setRowOver(group, k, { colStartAt: start + 1 });
+    }
+  }
+}
+
 function setRowOver(row, dataR, patch) {
   const all = { ...(row.rowOverrides || {}) };
   all[dataR] = { ...(all[dataR] || {}), ...patch };
@@ -971,6 +1016,20 @@ function snapGroupToRow(group, target) {
   const gBox = seatRowPixelSize(group);
   const onLeft = (group.left || 0) + gBox.w / 2 < (target.left || 0) + tBox.w / 2;
 
+  const touched = [target];
+
+  // Un rattachement précédent a pu décaler une autre rangée pour faire de la
+  // place au groupe : on la remet dans son état d'origine, sinon elle garde un
+  // trou et ses numéros ne reviennent jamais.
+  if (group.shiftedHost) {
+    const prev = seatRows.value.find((r) => r.id === group.shiftedHost.rowId);
+    if (prev) {
+      setRowOver(prev, group.shiftedHost.dataR, { colStartAt: group.shiftedHost.prev });
+      if (!touched.includes(prev)) touched.push(prev);
+    }
+    group.shiftedHost = null;
+  }
+
   const labels = [];
   for (let k = 0; k < (group.rows || 1); k++) {
     const dataR = order[Math.min(bestPos + k, order.length - 1)];
@@ -978,6 +1037,7 @@ function snapGroupToRow(group, target) {
     const gCols = rowColsAt(group, k);
     if (onLeft) {
       // Le groupe précède le bloc : il prend les premiers numéros, le bloc décale d'autant
+      if (k === 0) group.shiftedHost = { rowId: target.id, dataR, prev: rowStartAt(target, dataR) };
       setRowOver(group, k, { label, colStartAt: 0 });
       setRowOver(target, dataR, { colStartAt: gCols });
     } else {
@@ -986,7 +1046,9 @@ function snapGroupToRow(group, target) {
     }
     labels.push(label);
   }
-  return { labels, onLeft, target };
+
+  resolveGroupKeyCollisions(group);
+  return { labels, onLeft, target, touched };
 }
 
 async function attachGroupToSection(group, sectionName, target = null) {
@@ -1000,8 +1062,12 @@ async function attachGroupToSection(group, sectionName, target = null) {
 
   let labels = [];
   if (block) {
-    labels = snapGroupToRow(group, block).labels;
-    await adminApi.updateSeatRow(block.id, { rowOverrides: block.rowOverrides }, props.venueId);
+    const res = snapGroupToRow(group, block);
+    labels = res.labels;
+    // La cible ET l'ancienne rangée hôte peuvent avoir changé
+    for (const b of res.touched) {
+      await adminApi.updateSeatRow(b.id, { rowOverrides: b.rowOverrides }, props.venueId);
+    }
   }
 
   // Le lien parent fait du groupe un membre de la section : il suit le bloc
@@ -1015,6 +1081,7 @@ async function attachGroupToSection(group, sectionName, target = null) {
     categoryId: group.categoryId,
     rotation: Number(group.rotation || 0),
     rowOverrides: group.rowOverrides,
+    shiftedHost: group.shiftedHost ?? null,
   }, props.venueId);
 
   isDirty.value = true;
@@ -1026,9 +1093,18 @@ async function attachGroupToSection(group, sectionName, target = null) {
 
 async function detachGroup(group) {
   if (!group) return;
+  // Rendre son décalage à la rangée qui avait fait de la place au groupe
+  if (group.shiftedHost) {
+    const host = seatRows.value.find((r) => r.id === group.shiftedHost.rowId);
+    if (host) {
+      setRowOver(host, group.shiftedHost.dataR, { colStartAt: group.shiftedHost.prev });
+      await adminApi.updateSeatRow(host.id, { rowOverrides: host.rowOverrides }, props.venueId);
+    }
+    group.shiftedHost = null;
+  }
   group.section = '';
   group.parentRowId = null;
-  await adminApi.updateSeatRow(group.id, { section: '', parentRowId: null }, props.venueId);
+  await adminApi.updateSeatRow(group.id, { section: '', parentRowId: null, shiftedHost: null }, props.venueId);
   isDirty.value = true;
   emit('changed');
 }
@@ -1949,6 +2025,7 @@ async function persistSelected() {
       rowOrder: r.rowOrder || [],
       isGroup: !!r.isGroup,
       parentRowId: r.parentRowId ?? null,
+      shiftedHost: r.shiftedHost ?? null,
     }, props.venueId);
     // Les groupes rattachés ont pu être déplacés ou pivotés avec le bloc
     for (const g of attachedGroupsOf(r.id)) {
