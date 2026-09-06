@@ -861,49 +861,107 @@ const existingSections = computed(() => {
   return [...names].sort();
 });
 
-// Labels de rangée déjà pris dans une section, tous blocs confondus
-function usedRowLabels(sectionName, excludeId = null) {
-  const used = new Set();
-  for (const r of seatRows.value) {
-    if (r.id === excludeId || (r.section || '') !== sectionName) continue;
-    const ro = r.rowOverrides || {};
-    for (let i = 0; i < (r.rows || 0); i++) {
-      used.add(String(ro[i]?.label ?? computeAxisLabel(i, r.rows, r.rowFormat || 'A-Z', r.rowDirection || 'normal')));
+// Géométrie du rendu d'un bloc : bordure 1px + padding 6px de .editor-seat-card,
+// puis une rangée tous les (seatSize + 6px de gap).
+const CARD_INSET = 7;
+const ROW_GAP = 6;
+function rowTopOffset(row, displayPos) {
+  return CARD_INSET + displayPos * ((row.seatSize || 22) + ROW_GAP);
+}
+function displayOrder(row) {
+  return (row.rowOrder?.length === row.rows)
+    ? row.rowOrder
+    : Array.from({ length: row.rows || 1 }, (_, i) => i);
+}
+function rowLabelAt(row, dataR) {
+  const ov = (row.rowOverrides || {})[dataR] || {};
+  return ov.label != null && ov.label !== ''
+    ? String(ov.label)
+    : computeAxisLabel(dataR, row.rows, row.rowFormat || 'A-Z', row.rowDirection || 'normal');
+}
+function rowColsAt(row, dataR) {
+  const ov = (row.rowOverrides || {})[dataR] || {};
+  return ov.cols != null ? ov.cols : (row.cols || 1);
+}
+function rowStartAt(row, dataR) {
+  const ov = (row.rowOverrides || {})[dataR] || {};
+  return ov.colStartAt != null ? ov.colStartAt : 0;
+}
+function setRowOver(row, dataR, patch) {
+  const all = { ...(row.rowOverrides || {}) };
+  all[dataR] = { ...(all[dataR] || {}), ...patch };
+  row.rowOverrides = all;
+}
+
+// Cale le groupe sur la rangée du bloc la plus proche et lui en donne l'identité :
+// même hauteur, mêmes sièges, même catégorie, même libellé de rangée, et une
+// numérotation de colonnes qui prolonge celle du bloc du bon côté.
+function snapGroupToRow(group, target) {
+  const order = displayOrder(target);
+  let bestPos = 0, bestDist = Infinity;
+  for (let p = 0; p < order.length; p++) {
+    const d = Math.abs((target.top || 0) + rowTopOffset(target, p) - ((group.top || 0) + CARD_INSET));
+    if (d < bestDist) { bestDist = d; bestPos = p; }
+  }
+
+  // Apparence reprise du bloc (avant le calcul de position : la hauteur en dépend)
+  group.seatSize   = target.seatSize || 22;
+  group.shape      = target.shape || 'square';
+  group.categoryId = target.categoryId;
+  group.rotation   = group.rotation || 0;
+
+  group.top = Math.max(0, Math.round((target.top || 0) + bestPos * ((group.seatSize || 22) + ROW_GAP)));
+
+  const tBox = seatRowPixelSize(target);
+  const gBox = seatRowPixelSize(group);
+  const onLeft = (group.left || 0) + gBox.w / 2 < (target.left || 0) + tBox.w / 2;
+
+  const labels = [];
+  for (let k = 0; k < (group.rows || 1); k++) {
+    const dataR = order[Math.min(bestPos + k, order.length - 1)];
+    const label = rowLabelAt(target, dataR);
+    const gCols = rowColsAt(group, k);
+    if (onLeft) {
+      // Le groupe précède le bloc : il prend les premiers numéros, le bloc décale d'autant
+      setRowOver(group, k, { label, colStartAt: 0 });
+      setRowOver(target, dataR, { colStartAt: gCols });
+    } else {
+      // Le groupe prolonge la rangée : il démarre après le dernier siège du bloc
+      setRowOver(group, k, { label, colStartAt: rowStartAt(target, dataR) + rowColsAt(target, dataR) });
     }
+    labels.push(label);
   }
-  return used;
+  return { labels, onLeft, target };
 }
 
-// Attribue au groupe les premiers labels de rangée libres de la section :
-// c'est ce qui garantit qu'aucune clé de siège n'entre en collision.
-function assignFreeRowLabels(group, sectionName, format = null) {
-  const used = usedRowLabels(sectionName, group.id);
-  const fmt = format || group.rowFormat || 'A-Z';
-  const overrides = { ...(group.rowOverrides || {}) };
-  let startAt = 0;
-  for (let r = 0; r < (group.rows || 1); r++) {
-    let label;
-    do { label = computeAxisLabel(0, 1, fmt, 'normal', startAt); startAt += 1; } while (used.has(label));
-    used.add(label);
-    overrides[r] = { ...(overrides[r] || {}), label };
-  }
-  group.rowOverrides = overrides;
-  return Object.keys(overrides)
-    .filter((k) => Number(k) < (group.rows || 1))
-    .map((k) => overrides[k].label);
-}
-
-async function attachGroupToSection(group, sectionName, format = null) {
+async function attachGroupToSection(group, sectionName, target = null) {
   if (!group || !sectionName) return;
   group.section = sectionName;
-  const labels = assignFreeRowLabels(group, sectionName, format);
+  // À défaut de cible explicite (choix par la liste), on prend le bloc de la
+  // section dont une rangée est la plus proche verticalement.
+  const block = target ?? seatRows.value
+    .filter((r) => !r.isGroup && r.section === sectionName)
+    .sort((a, b) => Math.abs((a.top || 0) - (group.top || 0)) - Math.abs((b.top || 0) - (group.top || 0)))[0];
+
+  let labels = [];
+  if (block) {
+    labels = snapGroupToRow(group, block).labels;
+    await adminApi.updateSeatRow(block.id, { rowOverrides: block.rowOverrides }, props.venueId);
+  }
+
   await adminApi.updateSeatRow(group.id, {
     section: group.section,
+    top: group.top, left: group.left,
+    seatSize: Number(group.seatSize), shape: group.shape,
+    categoryId: group.categoryId,
     rowOverrides: group.rowOverrides,
   }, props.venueId);
+
   isDirty.value = true;
   emit('changed');
-  showToast(`Groupe rattaché à « ${sectionName} » — rangée(s) ${labels.join(', ')}`, 'success', 3500);
+  showToast(block
+    ? `Groupe calé sur la rangée ${labels.join(', ')} de « ${sectionName} »`
+    : `Groupe rattaché à « ${sectionName} »`, 'success', 3500);
 }
 
 async function detachGroup(group) {
@@ -919,8 +977,7 @@ function onGroupSectionChange(ev) {
   if (!row) return;
   const name = ev.target.value;
   if (!name) { detachGroup(row); return; }
-  const target = seatRows.value.find((r) => !r.isGroup && r.section === name);
-  attachGroupToSection(row, name, target?.rowFormat);
+  attachGroupToSection(row, name);
 }
 
 function findParentZone(row) {
@@ -1053,16 +1110,27 @@ function onPointerMove(ev) {
     } else {
       hoveredTableSection.value = null;
     }
-    // Survol d'un bloc de section pendant le déplacement d'un groupe de rangées
+    // Bloc visé pendant le déplacement d'un groupe de rangées.
+    // Le groupe se pose à CÔTÉ du bloc (il en prolonge une rangée), donc on
+    // accepte une marge horizontale au lieu d'exiger un recouvrement.
     if (drag.kind === 'seatRow' && item && item.isGroup && !drag.group) {
       const g = seatRowPixelSize(item);
       const cx = item.left + g.w / 2;
       const cy = item.top  + g.h / 2;
-      hoveredSeatRowTarget.value = seatRows.value.find((r) => {
-        if (r.id === item.id || r.isGroup || !r.section) return false;
+      const MARGIN = 160;
+      let best = null, bestDist = Infinity;
+      for (const r of seatRows.value) {
+        if (r.id === item.id || r.isGroup || !r.section) continue;
         const b = seatRowPixelSize(r);
-        return cx >= r.left && cx <= r.left + b.w && cy >= r.top && cy <= r.top + b.h;
-      }) ?? null;
+        // bande verticale du bloc, élargie d'une rangée
+        const rowH = (r.seatSize || 22) + ROW_GAP;
+        if (cy < r.top - rowH || cy > r.top + b.h + rowH) continue;
+        // distance horizontale au rectangle du bloc (0 si à l'intérieur)
+        const dx = Math.max(r.left - cx, 0, cx - (r.left + b.w));
+        if (dx > MARGIN) continue;
+        if (dx < bestDist) { bestDist = dx; best = r; }
+      }
+      hoveredSeatRowTarget.value = best;
     } else {
       hoveredSeatRowTarget.value = null;
     }
@@ -1196,8 +1264,7 @@ async function stopDrag() {
   if (mode === 'move' && kind === 'seatRow' && item.isGroup && hoveredSeatRowTarget.value) {
     const target = hoveredSeatRowTarget.value;
     hoveredSeatRowTarget.value = null;
-    await persistPosition(kind, item);
-    await attachGroupToSection(item, target.section, target.rowFormat);
+    await attachGroupToSection(item, target.section, target);
     scheduleAutoSave();
     return;
   }
@@ -3143,7 +3210,8 @@ async function saveAll(opts = {}) {
             v-for="row in seatRows" :key="row.id"
             class="absolute cursor-move select-none"
             :style="{
-              top: row.top + 'px', left: row.left + 'px', zIndex: (row.zIndex || 1) + 1000,
+              top: row.top + 'px', left: row.left + 'px',
+              zIndex: (row.zIndex || 1) + (row.isGroup ? 2000 : 1000),
               transform: `rotate(${row.rotation || 0}deg)`,
             }"
             @pointerdown="startDrag($event, 'seatRow', row)"
@@ -3819,11 +3887,12 @@ async function saveAll(opts = {}) {
             <option v-for="sec in existingSections" :key="sec" :value="sec">{{ sec }}</option>
           </select>
           <p class="text-[10px] text-gray-400 mt-0.5">
-            Le groupe garde sa numérotation propre. Au rattachement, ses rangées reçoivent
-            automatiquement les premiers libellés libres de la section pour éviter les clés en doublon.
+            Au rattachement, le groupe se cale sur la rangée du bloc la plus proche : il en prend
+            la hauteur, la taille de sièges et la catégorie, et devient cette rangée. Sa numérotation
+            de sièges prolonge celle du bloc — ou la précède s'il est posé à gauche.
           </p>
           <p v-if="!selectedSeatRow.section" class="text-[10px] text-amber-600 mt-1">
-            Non rattaché — glissez-le sur le bloc d'une section, ou choisissez-la ci-dessus.
+            Non rattaché — glissez-le près du bloc d'une section, ou choisissez-la ci-dessus.
           </p>
           <p v-else class="text-[10px] text-gray-500 mt-1">
             Rangée(s) :
