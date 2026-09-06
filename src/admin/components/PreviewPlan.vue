@@ -118,7 +118,10 @@ function buildSeatsByRow(row) {
     const rOver = (row.rowOverrides || {})[dataR] || {};
     const colOffset = rOver.colOffset ?? 0;
     const placeholders = Array.from({ length: colOffset }, (_, i) => ({ id: `ph-${dataR}-${i}`, status: 'placeholder' }));
-    return { r: dataR, seats: [...placeholders, ...all.filter((s) => s.r === dataR)] };
+    const rowLabel = rOver.label != null
+      ? rOver.label
+      : computeAxisLabel(dataR, row.rows, row.rowFormat, row.rowDirection);
+    return { r: dataR, rowLabel, seats: [...placeholders, ...all.filter((s) => s.r === dataR)] };
   });
 }
 
@@ -419,7 +422,27 @@ watch(
                 <!-- Rendu rangée par rangée pour respecter les overrides par rangée -->
                 <div :class="isLod ? 'lod-blur' : ''" class="flex flex-col gap-1.5">
                   <template v-for="rowGroup in buildSeatsByRow(row)" :key="rowGroup.r">
-                    <div class="flex gap-1.5">
+                    <div class="flex gap-1.5" style="position:relative;align-items:center;">
+                      <!-- Libellés de rangée, positionnés hors flux comme dans l'éditeur :
+                           dans le flux ils décaleraient les sièges et le plan ne serait plus fidèle -->
+                      <div v-if="!row.isGroup && (row.seatSize || 22) >= 12"
+                        class="flex items-center justify-end font-bold leading-none select-none"
+                        :style="{
+                          position: 'absolute', right: '100%', marginRight: '6px',
+                          top: '50%', transform: 'translateY(-50%)',
+                          width: '16px', opacity: 0.6,
+                          fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
+                          color: catById(row.categoryId).color,
+                        }">{{ rowGroup.rowLabel }}</div>
+                      <div v-if="!row.isGroup && (row.seatSize || 22) >= 12"
+                        class="flex items-center justify-start font-bold leading-none select-none"
+                        :style="{
+                          position: 'absolute', left: '100%', marginLeft: '6px',
+                          top: '50%', transform: 'translateY(-50%)',
+                          width: '16px', opacity: 0.6,
+                          fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
+                          color: catById(row.categoryId).color,
+                        }">{{ rowGroup.rowLabel }}</div>
                       <div
                         v-for="seat in rowGroup.seats" :key="seat.id"
                         class="seat flex items-center justify-center leading-none font-semibold cursor-default"

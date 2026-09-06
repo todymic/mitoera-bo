@@ -851,9 +851,26 @@ function startDrag(ev, kind, item) {
   window.addEventListener('pointerup', stopDrag);
 }
 
+// Encombrement réel : les libellés et la poignée sont hors flux, donc la carte
+// ne contient que les sièges — même géométrie que l'aperçu et le widget.
+function seatRowMaxCols(row) {
+  const over = row.rowOverrides || {};
+  let max = 0;
+  for (let r = 0; r < (row.rows || 1); r++) {
+    const ov = over[r] || {};
+    max = Math.max(max, (ov.cols != null ? ov.cols : (row.cols || 1)) + (ov.colOffset || 0));
+  }
+  return max || (row.cols || 1);
+}
 function seatRowPixelSize(row) {
-  const cellSize = (row.seatSize || 22) + 4;
-  return { w: (row.cols || 1) * cellSize + 28, h: (row.rows || 1) * cellSize + 20 };
+  const ss = row.seatSize || 22;
+  const cols = seatRowMaxCols(row);
+  const rows = row.rows || 1;
+  const inset = cardInsetOf(row);
+  return {
+    w: 2 * inset + cols * ss + Math.max(0, cols - 1) * 6,
+    h: 2 * inset + rows * ss + Math.max(0, rows - 1) * 6,
+  };
 }
 
 // ---------- Groupes de rangées rattachés à une section ----------
@@ -3316,8 +3333,8 @@ async function saveAll(opts = {}) {
                 >
                   <!-- Poignée réordonnancement (visible seulement quand le bloc est sélectionné) -->
                   <div v-if="!row.isGroup && selected && selected.kind==='seatRow' && selected.id===row.id"
-                    class="shrink-0 flex flex-col items-center justify-center gap-0.5 cursor-grab active:cursor-grabbing"
-                    style="width:8px;padding:2px 0;pointer-events:auto;"
+                    class="flex flex-col items-center justify-center gap-0.5 cursor-grab active:cursor-grabbing"
+                    style="width:8px;padding:2px 0;pointer-events:auto;position:absolute;right:100%;margin-right:28px;top:50%;transform:translateY(-50%);"
                     :title="'Glisser pour déplacer la rangée ' + rowLabel"
                     @pointerdown.stop="startRowReorder($event, row, dPos, rIdx)"
                   >
@@ -3327,8 +3344,10 @@ async function saveAll(opts = {}) {
                   </div>
                   <!-- Label rangée GAUCHE — masqué sur un groupe, le bloc l'affiche déjà -->
                   <div v-if="!row.isGroup && (row.seatSize || 22) >= 12"
-                    class="shrink-0 flex items-center justify-end font-bold leading-none pointer-events-none select-none"
+                    class="flex items-center justify-end font-bold leading-none pointer-events-none select-none"
                     :style="{
+                      position: 'absolute', right: '100%', marginRight: '6px',
+                      top: '50%', transform: 'translateY(-50%)',
                       width: '16px',
                       fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
                       color: catById(row.categoryId).color,
@@ -3369,8 +3388,10 @@ async function saveAll(opts = {}) {
                   >{{ (row.seatSize || 22) >= 14 && seat.status !== 'deleted' ? seat.colLabel : '' }}</div>
                   <!-- Label rangée DROITE — masqué sur un groupe -->
                   <div v-if="!row.isGroup && (row.seatSize || 22) >= 12"
-                    class="shrink-0 flex items-center justify-start font-bold leading-none pointer-events-none select-none"
+                    class="flex items-center justify-start font-bold leading-none pointer-events-none select-none"
                     :style="{
+                      position: 'absolute', left: '100%', marginLeft: '6px',
+                      top: '50%', transform: 'translateY(-50%)',
                       width: '16px',
                       fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
                       color: catById(row.categoryId).color,
