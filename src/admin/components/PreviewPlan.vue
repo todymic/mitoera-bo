@@ -384,7 +384,7 @@ watch(
               v-for="row in seatRows" :key="row.id"
               class="absolute seat-block select-none"
               :class="isLod ? 'cursor-zoom-in' : ''"
-              :style="{ top: row.top + 'px', left: row.left + 'px' }"
+              :style="{ top: row.top + 'px', left: row.left + 'px', transform: `rotate(${row.rotation || 0}deg)` }"
               @click="zoomIntoSection($event)"
             >
               <!-- Badge LOD centré (visible seulement en vue dézoomée) -->

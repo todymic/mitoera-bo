@@ -36,6 +36,7 @@ const placementHistory = ref([]);
 
 function selectTool(tool) {
   activeTool.value = tool === null ? null : (activeTool.value === tool ? null : tool);
+  if (activeTool.value) { marqueeMode.value = false; selectedObjects.clear(); }
   selected.value = null;
   panWasDrag = false;
   placementHistory.value = [];
@@ -88,12 +89,19 @@ function isEditableTarget(el) {
 
 // Escape annule le mode placement · Ctrl/Cmd + C / V / D = copier / coller / dupliquer
 function onKeyDown(ev) {
-  if (ev.key === 'Escape' && activeTool.value) { activeTool.value = null; ev.preventDefault(); return; }
+  if (ev.key === 'Escape') {
+    if (activeTool.value)            { activeTool.value = null; ev.preventDefault(); return; }
+    if (marqueeMode.value)           { marqueeMode.value = false; ev.preventDefault(); return; }
+    if (selectedObjects.size)        { clearObjectSelection(); ev.preventDefault(); return; }
+    return;
+  }
   if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
   if (isEditableTarget(ev.target)) return;
   const k = (ev.key || '').toLowerCase();
-  if (k === 'c' && duplicable.value)          { ev.preventDefault(); copySelected(); }
+  if (k === 'a')                              { ev.preventDefault(); selectAllObjects(); }
+  else if (k === 'c' && duplicable.value)     { ev.preventDefault(); copySelected(); }
   else if (k === 'v' && clipboard.value)      { ev.preventDefault(); pasteClipboard(); }
+  else if (k === 'd' && selectedObjects.size) { ev.preventDefault(); duplicateObjectSelection(); }
   else if (k === 'd' && duplicable.value)     { ev.preventDefault(); duplicateSelected(); }
 }
 
@@ -112,6 +120,7 @@ const showInfoTooltip = ref(false);
 // Auto-ouvre le panneau propriétés sur mobile quand un élément est sélectionné
 watch(selected, (v) => {
   deleteBlockMessage.value = '';
+  if (v) selectedObjects.clear();
   if (v && window.innerWidth < 1024) showProps.value = true;
 });
 
@@ -207,7 +216,10 @@ async function onCanvasPlacementClick(ev) {
 
 function startPan(ev) {
   if (ev.button !== 0) return;
+  marqueeJustFinished = false;
   if (activeTool.value) return;
+  // Mode sélection multiple (ou Maj enfoncée) : on trace un rectangle au lieu de déplacer la vue
+  if (marqueeMode.value || ev.shiftKey) { ev.preventDefault(); startMarquee(ev); return; }
   ev.preventDefault();
   panWasDrag = false;
   pan.active = true;
@@ -233,7 +245,7 @@ function stopPan() {
 }
 
 function onScrollerClick(ev) {
-  if (zoom.value >= 0.5 || panWasDrag) return;
+  if (zoom.value >= 0.5 || panWasDrag || marqueeJustFinished) return;
   const rect = scrollerRef.value.getBoundingClientRect();
   const cx = (ev.clientX - rect.left - panX.value) / zoom.value;
   const cy = (ev.clientY - rect.top  - panY.value) / zoom.value;
@@ -669,7 +681,7 @@ function selectTableSeat(t, seat) {
   selected.value = { kind: 'tableSeat', tableId: t.id, seatInfo: seat };
   multiSelected.clear();
 }
-function deselect() { selected.value = null; multiSelected.clear(); }
+function deselect() { selected.value = null; multiSelected.clear(); selectedObjects.clear(); }
 
 // ---------- Clic sur un siège : sélection simple ou multiple (Ctrl/Cmd ou Shift) ----------
 function onSeatClick(row, seat, ev) {
@@ -717,16 +729,29 @@ function bringToFront(item) {
 
 function startDrag(ev, kind, item) {
   if (ev.button !== 0) return;
+  marqueeJustFinished = false;
+  // Ctrl/Cmd/Maj + clic : ajoute ou retire l'objet de la sélection multiple
+  if (ev.ctrlKey || ev.metaKey || ev.shiftKey) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    toggleObjectSelection(kind, item);
+    return;
+  }
   ev.preventDefault();
   ev.stopPropagation();
-  if (kind !== 'imageLayer') bringToFront(item);
-  if (kind === 'zone') selectZone(item);
-  else if (kind === 'seatRow') selectSeatRow(item);
-  else if (kind === 'tableZone') selectTableZone(item);
-  else if (kind === 'tableSection') selectTableSection(item);
-  else if (kind === 'textLabel') selectTextLabel(item);
-  else if (kind === 'imageLayer') selectImageLayer(item);
-  else selectFreeZone(item);
+  // Glisser un objet déjà dans la sélection déplace tout le groupe
+  const inGroup = isObjectSelected(kind, item.id) && selectedObjects.size > 1;
+  if (!inGroup) {
+    clearObjectSelection();
+    if (kind !== 'imageLayer') bringToFront(item);
+    if (kind === 'zone') selectZone(item);
+    else if (kind === 'seatRow') selectSeatRow(item);
+    else if (kind === 'tableZone') selectTableZone(item);
+    else if (kind === 'tableSection') selectTableSection(item);
+    else if (kind === 'textLabel') selectTextLabel(item);
+    else if (kind === 'imageLayer') selectImageLayer(item);
+    else selectFreeZone(item);
+  }
   const canvasRect = canvasRef.value.getBoundingClientRect();
   const z = zoom.value;
   drag.active = true;
@@ -734,6 +759,11 @@ function startDrag(ev, kind, item) {
   drag.kind = kind;
   drag.id = item.id;
   drag.moved = false;
+  drag.originLeft = item.left;
+  drag.originTop  = item.top;
+  drag.group = inGroup
+    ? objectsInSelection().map(({ kind: k, obj }) => ({ kind: k, id: obj.id, left: obj.left || 0, top: obj.top || 0 }))
+    : null;
   drag.offsetX = (ev.clientX - canvasRect.left) / z - item.left;
   drag.offsetY = (ev.clientY - canvasRect.top)  / z - item.top;
   window.addEventListener('pointermove', onPointerMove);
@@ -825,9 +855,24 @@ function onPointerMove(ev) {
     let newLeft = Math.max(0, Math.round((ev.clientX - canvasRect.left) / z - drag.offsetX));
     let newTop  = Math.max(0, Math.round((ev.clientY - canvasRect.top)  / z - drag.offsetY));
     const item = listFor(drag.kind).find((x) => x.id === drag.id);
-    if (item) { item.left = newLeft; item.top = newTop; }
-    // Détection de survol d'une tableSection lors du drag d'une tableZone
-    if (drag.kind === 'tableZone' && item) {
+    if (item) {
+      if (drag.group) {
+        // Borner le déplacement du groupe, pas chaque objet : sinon un objet
+        // collé au bord se bloque et la mise en page se déforme.
+        const minLeft = Math.min(...drag.group.map((g) => g.left));
+        const minTop  = Math.min(...drag.group.map((g) => g.top));
+        const dLeft = Math.max(newLeft - drag.originLeft, -minLeft);
+        const dTop  = Math.max(newTop  - drag.originTop,  -minTop);
+        for (const g of drag.group) {
+          const o = listFor(g.kind).find((x) => x.id === g.id);
+          if (o) { o.left = Math.round(g.left + dLeft); o.top = Math.round(g.top + dTop); }
+        }
+      } else {
+        item.left = newLeft; item.top = newTop;
+      }
+    }
+    // Détection de survol d'une tableSection lors du drag d'une tableZone (jamais en groupe)
+    if (drag.kind === 'tableZone' && item && !drag.group) {
       const tzSize = tableZoneSize(item);
       const tzCX = item.left + tzSize / 2;
       const tzCY = item.top  + tzSize / 2;
@@ -860,8 +905,13 @@ function onPointerMove(ev) {
   } else if (drag.mode === 'resizeSeatRow') {
     const item = seatRows.value.find((x) => x.id === drag.id);
     if (item) {
-      const dx = (ev.clientX - drag.startX) / z;
-      const dy = (ev.clientY - drag.startY) / z;
+      // Ramène le déplacement souris dans le repère du bloc (rotation inverse).
+      const rot = ((item.rotation || 0) * Math.PI) / 180;
+      const cos = Math.cos(rot), sin = Math.sin(rot);
+      const mx = (ev.clientX - drag.startX) / z;
+      const my = (ev.clientY - drag.startY) / z;
+      const dx =  mx * cos + my * sin;
+      const dy = -mx * sin + my * cos;
       if (drag.side === 'right') {
         item.cols = Math.max(1, drag.baseCols + Math.round(dx / drag.cellSize));
       } else if (drag.side === 'left') {
@@ -902,8 +952,22 @@ async function stopDrag() {
   window.removeEventListener('pointerup', stopDrag);
 
   const item = listFor(kind).find((x) => x.id === id);
-  if (!item || !drag.moved) { hoveredTableSection.value = null; return; }
+  if (!item || !drag.moved) { hoveredTableSection.value = null; drag.group = null; return; }
   isDirty.value = true;
+
+  // Déplacement groupé : on enregistre la nouvelle position de chaque objet
+  if (mode === 'move' && drag.group) {
+    const group = drag.group;
+    drag.group = null;
+    hoveredTableSection.value = null;
+    for (const g of group) {
+      const o = listFor(g.kind).find((x) => x.id === g.id);
+      if (o) await persistPosition(g.kind, o);
+    }
+    emit('changed');
+    scheduleAutoSave();
+    return;
+  }
 
   // Fusion d'une tableZone dans une tableSection survolée
   if (mode === 'move' && kind === 'tableZone' && hoveredTableSection.value) {
@@ -941,13 +1005,7 @@ async function stopDrag() {
   hoveredTableSection.value = null;
 
   if (mode === 'move') {
-    if (kind === 'zone') await adminApi.updateZone(item.id, { top: item.top, left: item.left }, props.venueId);
-    else if (kind === 'freeZone') await adminApi.updateFreeZone(item.id, { top: item.top, left: item.left }, props.venueId);
-    else if (kind === 'tableZone') await adminApi.updateTableZone(item.id, { top: item.top, left: item.left }, props.venueId);
-    else if (kind === 'tableSection') await adminApi.updateTableSection(item.id, { top: item.top, left: item.left }, props.venueId);
-    else if (kind === 'textLabel') await adminApi.updateTextLabel(item.id, { top: item.top, left: item.left }, props.venueId);
-    else if (kind === 'imageLayer') await adminApi.updateImageLayer(item.id, { top: item.top, left: item.left }, props.venueId);
-    else await adminApi.updateSeatRow(item.id, { top: item.top, left: item.left }, props.venueId);
+    await persistPosition(kind, item);
   } else if (mode === 'resize') {
     if (kind === 'zone') await adminApi.updateZone(item.id, { width: item.width, height: item.height, top: item.top, left: item.left }, props.venueId);
     else await adminApi.updateFreeZone(item.id, { width: item.width, height: item.height, top: item.top, left: item.left }, props.venueId);
@@ -978,7 +1036,7 @@ async function addSeatRow(left = 40, top = 40) {
   if (categories.value.length === 0) return null;
   const r = await adminApi.createSeatRow(props.venueId, {
     section: '', label: 'Nouveau bloc', categoryId: categories.value[0].id,
-    top, left, rows: 3, cols: 6, shape: 'square', seatSize: 20,
+    top, left, rows: 3, cols: 6, shape: 'square', seatSize: 20, rotation: 0,
   });
   seatRows.value.push(r);
   selectSeatRow(r);
@@ -1215,6 +1273,210 @@ async function duplicateSelected() {
   if (created) showToast(`${KIND_LABELS[sel.kind]} dupliqué`, 'success', 2000);
 }
 
+// ---------- Sélection multiple d'objets ----------
+const OBJECT_KINDS = ['zone', 'seatRow', 'freeZone', 'tableZone', 'tableSection', 'textLabel', 'imageLayer'];
+
+const selectedObjects = reactive(new Set()); // clés "kind:id"
+const marqueeMode = ref(false);
+const marquee = reactive({ active: false, x0: 0, y0: 0, x1: 0, y1: 0 });
+// Empêche le clic de fin de rectangle de vider la sélection qu'il vient de faire
+let marqueeJustFinished = false;
+
+function objKey(kind, id) { return `${kind}:${id}`; }
+function splitObjKey(key) { const i = key.indexOf(':'); return [key.slice(0, i), key.slice(i + 1)]; }
+function isObjectSelected(kind, id) { return selectedObjects.has(objKey(kind, id)); }
+function clearObjectSelection() { selectedObjects.clear(); }
+
+function objectsInSelection() {
+  return [...selectedObjects]
+    .map(splitObjKey)
+    .map(([kind, id]) => ({ kind, obj: listFor(kind).find((x) => x.id === id) }))
+    .filter((x) => x.obj);
+}
+
+function toggleObjectSelection(kind, item) {
+  const key = objKey(kind, item.id);
+  if (selectedObjects.has(key)) selectedObjects.delete(key);
+  else selectedObjects.add(key);
+  selected.value = null;
+  multiSelected.clear();
+}
+
+function selectAllObjects() {
+  selected.value = null;
+  multiSelected.clear();
+  selectedObjects.clear();
+  for (const kind of OBJECT_KINDS) {
+    for (const o of listFor(kind)) selectedObjects.add(objKey(kind, o.id));
+  }
+  showToast(selectedObjects.size
+    ? `${selectedObjects.size} objet(s) sélectionné(s)`
+    : 'Aucun objet sur le plan', 'info', 2000);
+}
+
+function toggleMarqueeMode() {
+  marqueeMode.value = !marqueeMode.value;
+  if (marqueeMode.value) { activeTool.value = null; placementHistory.value = []; }
+}
+
+// Encombrement d'un objet en coordonnées canvas (même formules que canvasWidth/Height)
+function objectBox(kind, o) {
+  const ss = o.seatSize || 22;
+  if (kind === 'seatRow') {
+    const colW = (o.shape === 'rounded' ? ss * 1.5 : ss) + 4;
+    return { left: o.left || 0, top: o.top || 0,
+             width: (o.cols || 1) * colW + 28, height: (o.rows || 1) * (ss + 4) + 30 };
+  }
+  if (kind === 'tableZone') {
+    const sz = tableZoneSize(o);
+    return { left: o.left || 0, top: o.top || 0, width: sz, height: sz };
+  }
+  if (kind === 'tableSection') {
+    return { left: o.left || 0, top: o.top || 0, width: tableSectionWidth(o), height: tableSectionHeight(o) };
+  }
+  if (kind === 'textLabel') {
+    const fs = o.fontSize || 16;
+    return { left: o.left || 0, top: o.top || 0,
+             width: Math.max(24, (o.caption?.length || 4) * fs * 0.6), height: fs * 1.4 };
+  }
+  if (kind === 'imageLayer') {
+    const sc = o.scale ?? 1;
+    return { left: o.left || 0, top: o.top || 0,
+             width: (o.naturalWidth || 100) * sc, height: (o.naturalHeight || 100) * sc };
+  }
+  return { left: o.left || 0, top: o.top || 0, width: o.width || 100, height: o.height || 50 };
+}
+
+const selectionBoxes = computed(() => objectsInSelection().map(({ kind, obj }) => ({
+  key: objKey(kind, obj.id), ...objectBox(kind, obj),
+})));
+
+// Cadre englobant, affiché à partir de deux objets
+const selectionBounds = computed(() => {
+  const boxes = selectionBoxes.value;
+  if (boxes.length < 2) return null;
+  const l = Math.min(...boxes.map((b) => b.left));
+  const t = Math.min(...boxes.map((b) => b.top));
+  const r = Math.max(...boxes.map((b) => b.left + b.width));
+  const b = Math.max(...boxes.map((b) => b.top + b.height));
+  return { left: l, top: t, width: r - l, height: b - t };
+});
+
+const marqueeRect = computed(() => ({
+  left: Math.min(marquee.x0, marquee.x1),
+  top: Math.min(marquee.y0, marquee.y1),
+  width: Math.abs(marquee.x1 - marquee.x0),
+  height: Math.abs(marquee.y1 - marquee.y0),
+}));
+
+function startMarquee(ev) {
+  const { x, y } = canvasClickCoords(ev);
+  marquee.active = true;
+  marquee.x0 = marquee.x1 = x;
+  marquee.y0 = marquee.y1 = y;
+  selectedObjects.clear();
+  selected.value = null;
+  multiSelected.clear();
+  window.addEventListener('pointermove', onMarqueeMove);
+  window.addEventListener('pointerup', stopMarquee);
+  window.addEventListener('pointercancel', stopMarquee);
+}
+function onMarqueeMove(ev) {
+  if (!marquee.active) return;
+  const { x, y } = canvasClickCoords(ev);
+  marquee.x1 = x;
+  marquee.y1 = y;
+}
+function stopMarquee() {
+  if (!marquee.active) return;
+  window.removeEventListener('pointermove', onMarqueeMove);
+  window.removeEventListener('pointerup', stopMarquee);
+  window.removeEventListener('pointercancel', stopMarquee);
+  marquee.active = false;
+  const r = marqueeRect.value;
+  if (r.width < 4 && r.height < 4) return; // simple clic
+  for (const kind of OBJECT_KINDS) {
+    for (const o of listFor(kind)) {
+      const b = objectBox(kind, o);
+      const hit = b.left < r.left + r.width && b.left + b.width > r.left
+               && b.top  < r.top + r.height && b.top + b.height > r.top;
+      if (hit) selectedObjects.add(objKey(kind, o.id));
+    }
+  }
+  marqueeJustFinished = true;
+  if (selectedObjects.size) {
+    // Retour au mode normal : le pan et le déplacement de groupe redeviennent possibles.
+    marqueeMode.value = false;
+    showToast(`${selectedObjects.size} objet(s) sélectionné(s)`, 'info', 1800);
+  }
+}
+
+// Clic sur le fond : ne pas annuler la sélection que le rectangle vient de produire
+function onCanvasBackgroundClick() {
+  if (activeTool.value || marqueeJustFinished) return;
+  deselect();
+}
+
+async function persistPosition(kind, item) {
+  const pos = { top: item.top, left: item.left };
+  if (kind === 'zone')              await adminApi.updateZone(item.id, pos, props.venueId);
+  else if (kind === 'freeZone')     await adminApi.updateFreeZone(item.id, pos, props.venueId);
+  else if (kind === 'tableZone')    await adminApi.updateTableZone(item.id, pos, props.venueId);
+  else if (kind === 'tableSection') await adminApi.updateTableSection(item.id, pos, props.venueId);
+  else if (kind === 'textLabel')    await adminApi.updateTextLabel(item.id, pos, props.venueId);
+  else if (kind === 'imageLayer')   await adminApi.updateImageLayer(item.id, pos, props.venueId);
+  else                              await adminApi.updateSeatRow(item.id, pos, props.venueId);
+}
+
+async function deleteObject(kind, id) {
+  if (kind === 'zone')              { await adminApi.deleteZone(id, props.venueId);         zones.value         = zones.value.filter((x) => x.id !== id); }
+  else if (kind === 'seatRow')      { await adminApi.deleteSeatRow(id, props.venueId);      seatRows.value      = seatRows.value.filter((x) => x.id !== id); }
+  else if (kind === 'freeZone')     { await adminApi.deleteFreeZone(id, props.venueId);     freeZones.value     = freeZones.value.filter((x) => x.id !== id); }
+  else if (kind === 'tableZone')    { await adminApi.deleteTableZone(id, props.venueId);    tableZones.value    = tableZones.value.filter((x) => x.id !== id); }
+  else if (kind === 'tableSection') { await adminApi.deleteTableSection(id, props.venueId); tableSections.value = tableSections.value.filter((x) => x.id !== id); }
+  else if (kind === 'textLabel')    { await adminApi.deleteTextLabel(id, props.venueId);    textLabels.value    = textLabels.value.filter((x) => x.id !== id); }
+  else if (kind === 'imageLayer')   { await adminApi.deleteImageLayer(id, props.venueId);   imageLayers.value   = imageLayers.value.filter((x) => x.id !== id); }
+}
+
+async function duplicateObjectSelection() {
+  if (!selectedObjects.size || pasting.value) return;
+  const items = objectsInSelection();
+  const created = [];
+  for (const { kind, obj } of items) {
+    const c = await createFromClone(kind, obj, 24, 24);
+    if (c) created.push(objKey(kind, c.id));
+  }
+  selected.value = null;
+  selectedObjects.clear();
+  created.forEach((k) => selectedObjects.add(k));
+  showToast(`${created.length} objet(s) dupliqué(s)`, 'success', 2500);
+}
+
+async function removeObjectSelection() {
+  if (!selectedObjects.size) return;
+  deleteBlockMessage.value = '';
+  const items = objectsInSelection();
+  // Rien n'est supprimé si une seule section contient des sièges réservés
+  for (const { kind, obj } of items) {
+    if (!['seatRow', 'tableZone', 'tableSection'].includes(kind)) continue;
+    const blocked = await checkBookedSeats(sectionPrefix(obj));
+    if (blocked.length > 0) {
+      deleteBlockMessage.value = `« ${sectionPrefix(obj)} » contient ${blocked.length} siège(s) réservé(s) — suppression groupée annulée.`;
+      showProps.value = true;
+      return;
+    }
+  }
+  for (const { kind, obj } of items) {
+    try { await deleteObject(kind, obj.id); } catch (_) {}
+  }
+  const n = items.length;
+  selectedObjects.clear();
+  deselect();
+  isDirty.value = true;
+  emit('changed');
+  showToast(`${n} objet(s) supprimé(s)`, 'success', 2500);
+}
+
 // ---------- Édition via panneau latéral ----------
 let saveTimer = null;
 function scheduleSave() {
@@ -1239,6 +1501,7 @@ async function persistSelected() {
       rowFormat: r.rowFormat, rowDirection: r.rowDirection,
       colFormat: r.colFormat, colDirection: r.colDirection,
       rowLabelFontSize: Number(r.rowLabelFontSize),
+      rotation: Number(r.rotation || 0),
       badgeVisible: !!r.badgeVisible,
       deletedSeats: r.deletedSeats || [],
       seatLabelOverrides: r.seatLabelOverrides || {},
@@ -1779,9 +2042,9 @@ async function saveAll(opts = {}) {
       <!-- Sélection (pointeur) -->
       <div class="relative group">
         <button
-          @click="selectTool(null)"
+          @click="selectTool(null); marqueeMode = false"
           class="w-10 h-10 rounded-xl flex items-center justify-center transition"
-          :class="activeTool === null
+          :class="activeTool === null && !marqueeMode
             ? 'bg-gray-900 text-white ring-2 ring-gray-900 ring-offset-1'
             : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'"
         >
@@ -1793,6 +2056,28 @@ async function saveAll(opts = {}) {
           bg-gray-900 text-white text-xs font-semibold whitespace-nowrap rounded-lg px-2.5 py-1.5 shadow-lg
           opacity-0 group-hover:opacity-100 transition-opacity">
           Sélection
+          <div class="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+        </div>
+      </div>
+
+      <!-- Sélection multiple (rectangle) -->
+      <div class="relative group">
+        <button
+          @click="toggleMarqueeMode"
+          class="w-10 h-10 rounded-xl flex items-center justify-center transition"
+          :class="marqueeMode
+            ? 'bg-blue-600 text-white ring-2 ring-blue-500 ring-offset-1'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'"
+        >
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="4 3"/>
+            <path d="M11 11l6 2.4-2.4 1L13.4 17z" fill="currentColor" stroke="none"/>
+          </svg>
+        </button>
+        <div class="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50
+          bg-gray-900 text-white text-xs font-semibold whitespace-nowrap rounded-lg px-2.5 py-1.5 shadow-lg
+          opacity-0 group-hover:opacity-100 transition-opacity">
+          Sélection multiple — glissez un rectangle
           <div class="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
         </div>
       </div>
@@ -2124,6 +2409,12 @@ async function saveAll(opts = {}) {
               @click.stop>
               <button @click="showInfoTooltip = false" class="float-right text-gray-400 hover:text-white ml-2 leading-none">✕</button>
               Glissez pour <strong class="text-white">déplacer</strong> · tirez un bord pour <strong class="text-white">redimensionner</strong> (bloc de sièges : gauche/droit = sièges par rang, haut/bas = rangées) · cliquez un siège pour le <strong class="text-white">sélectionner</strong>, <strong class="text-white">Ctrl/Cmd-clic</strong> ou <strong class="text-white">Maj-clic</strong> pour en sélectionner plusieurs.
+              <span class="block mt-2 pt-2 border-t border-gray-700">
+                <strong class="text-white">Plusieurs objets</strong> : outil « Sélection multiple » ou <strong class="text-white">Maj + glisser</strong> sur le fond pour les encadrer, <strong class="text-white">Ctrl/Cmd-clic</strong> sur un objet pour l'ajouter, <strong class="text-white">Ctrl/Cmd + A</strong> pour tout sélectionner. Glissez-en un pour tous les déplacer.
+              </span>
+              <span class="block mt-2">
+                <strong class="text-white">Raccourcis</strong> : Ctrl/Cmd + C copier · V coller · D dupliquer.
+              </span>
             </div>
             <div v-if="showInfoTooltip" class="fixed inset-0 z-[9998]" @click="showInfoTooltip = false" />
           </Teleport>
@@ -2182,6 +2473,17 @@ async function saveAll(opts = {}) {
       </div>
       <p v-if="saveError" class="text-xs text-red-500 bg-red-50 p-2 rounded-lg mb-2">{{ saveError }}</p>
 
+      <!-- Barre d'actions — objets sélectionnés -->
+      <div v-if="selectedObjects.size > 0" class="mb-3 p-3 rounded-lg bg-blue-600 text-white flex items-center flex-wrap gap-2 text-xs">
+        <span class="font-semibold">{{ selectedObjects.size }} objet(s) sélectionné(s)</span>
+        <span class="border-l border-blue-400 h-5 mx-1"></span>
+        <button @click="selectAllObjects" class="px-3 py-1.5 rounded-md bg-blue-500 hover:bg-blue-400 font-semibold">Tout sélectionner</button>
+        <button @click="duplicateObjectSelection" :disabled="pasting" class="px-3 py-1.5 rounded-md bg-blue-500 hover:bg-blue-400 font-semibold disabled:opacity-40">Dupliquer</button>
+        <button @click="removeObjectSelection" class="px-3 py-1.5 rounded-md bg-red-500 hover:bg-red-400 font-semibold">Supprimer</button>
+        <span class="hidden sm:inline text-blue-100">Glissez un des objets pour les déplacer ensemble</span>
+        <button @click="clearObjectSelection" class="ml-auto px-3 py-1.5 rounded-md bg-blue-700 hover:bg-blue-800 font-semibold">Tout désélectionner</button>
+      </div>
+
       <!-- Barre d'actions groupées -->
       <div v-if="multiSelected.size > 0" class="mb-3 p-3 rounded-lg bg-gray-900 text-white flex items-center flex-wrap gap-2 text-xs">
         <span class="font-semibold">{{ multiSelected.size }} siège(s) sélectionné(s)</span>
@@ -2212,7 +2514,7 @@ async function saveAll(opts = {}) {
 
       <div v-else ref="scrollerRef"
         class="overflow-hidden rounded-xl flex-1 min-h-0 bg-gray-400 relative"
-        :class="activeTool ? 'cursor-crosshair' : pan.active ? 'cursor-grabbing' : 'cursor-grab'"
+        :class="activeTool || marqueeMode ? 'cursor-crosshair' : pan.active ? 'cursor-grabbing' : 'cursor-grab'"
         style="touch-action: none;"
         @wheel.prevent="onWheel"
         @pointerdown="startPan($event); showInfoTooltip = false; showCatPanel = false"
@@ -2225,6 +2527,15 @@ async function saveAll(opts = {}) {
           <button @click.stop="zoomOut" class="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-md font-bold transition text-base">−</button>
           <button @click.stop="zoomReset" class="px-1.5 h-7 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-md text-[11px] font-semibold transition min-w-[42px]">{{ Math.round(zoom * 100) }}%</button>
           <button @click.stop="zoomIn"  class="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-md font-bold transition text-base">+</button>
+        </div>
+
+        <!-- Indicateur mode sélection multiple -->
+        <div v-if="marqueeMode && !activeTool" class="absolute top-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none
+          bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="4 3"/>
+          </svg>
+          Glissez pour encadrer plusieurs objets · Échap pour quitter
         </div>
 
         <!-- Indicateur mode placement -->
@@ -2243,7 +2554,25 @@ async function saveAll(opts = {}) {
             transformOrigin: '0 0',
           }"
           @pointerdown.self="activeTool ? null : deselect()"
-          @click.self="activeTool ? null : deselect()">
+          @click.self="onCanvasBackgroundClick">
+
+          <!-- Rectangle de sélection en cours de tracé -->
+          <div v-if="marquee.active"
+            class="absolute pointer-events-none border-2 border-blue-500 bg-blue-500/10 rounded-sm"
+            :style="{ left: marqueeRect.left + 'px', top: marqueeRect.top + 'px',
+                      width: marqueeRect.width + 'px', height: marqueeRect.height + 'px', zIndex: 980 }"></div>
+
+          <!-- Cadre englobant du groupe sélectionné -->
+          <div v-if="selectionBounds"
+            class="absolute pointer-events-none border border-blue-400"
+            :style="{ left: (selectionBounds.left - 6) + 'px', top: (selectionBounds.top - 6) + 'px',
+                      width: (selectionBounds.width + 12) + 'px', height: (selectionBounds.height + 12) + 'px', zIndex: 960 }"></div>
+
+          <!-- Cadre bleu autour de chaque objet sélectionné -->
+          <div v-for="b in selectionBoxes" :key="b.key"
+            class="absolute pointer-events-none border-2 border-blue-500 rounded"
+            :style="{ left: (b.left - 2) + 'px', top: (b.top - 2) + 'px',
+                      width: (b.width + 4) + 'px', height: (b.height + 4) + 'px', zIndex: 970 }"></div>
 
           <!-- Filigrane TEST en mode sandbox -->
           <svg v-if="isSandbox"
@@ -2497,7 +2826,10 @@ async function saveAll(opts = {}) {
           <div
             v-for="row in seatRows" :key="row.id"
             class="absolute cursor-move select-none"
-            :style="{ top: row.top + 'px', left: row.left + 'px', zIndex: row.zIndex || 1 }"
+            :style="{
+              top: row.top + 'px', left: row.left + 'px', zIndex: row.zIndex || 1,
+              transform: `rotate(${row.rotation || 0}deg)`,
+            }"
             @pointerdown="startDrag($event, 'seatRow', row)"
           >
             <!-- Carte dont la couleur suit la catégorie -->
@@ -2659,8 +2991,37 @@ async function saveAll(opts = {}) {
         </p>
       </div>
 
-      <div v-if="!selected && multiSelected.size === 0" class="text-sm text-gray-400 py-6 text-center">
+      <div v-if="selectedObjects.size > 0" class="flex flex-col gap-3">
+        <p class="font-bold text-gray-800">{{ selectedObjects.size }} objet(s) sélectionné(s)</p>
+        <p class="text-xs text-gray-500 leading-relaxed">
+          Glissez n'importe lequel d'entre eux sur le plan pour <strong>tous</strong> les déplacer.
+          Ctrl/Cmd-clic ou Maj-clic sur un objet pour l'ajouter ou le retirer.
+        </p>
+        <ul class="text-[11px] text-gray-500 flex flex-col gap-0.5 max-h-40 overflow-y-auto">
+          <li v-for="o in objectsInSelection()" :key="o.kind + o.obj.id" class="truncate">
+            • <span class="font-semibold">{{ KIND_LABELS[o.kind] }}</span>
+            <span class="text-gray-400">{{ o.obj.section || o.obj.label || o.obj.caption || '' }}</span>
+          </li>
+        </ul>
+        <button @click="duplicateObjectSelection" :disabled="pasting"
+          class="w-full py-2 rounded-lg bg-indigo-50 text-indigo-600 text-sm font-semibold hover:bg-indigo-100 disabled:opacity-40">
+          Dupliquer la sélection
+        </button>
+        <button @click="removeObjectSelection"
+          class="w-full py-2 rounded-lg bg-red-50 text-red-500 text-sm font-semibold hover:bg-red-100">
+          Supprimer la sélection
+        </button>
+        <button @click="clearObjectSelection"
+          class="w-full py-2 rounded-lg bg-gray-100 text-gray-600 text-sm font-semibold hover:bg-gray-200">
+          Tout désélectionner
+        </button>
+      </div>
+
+      <div v-else-if="!selected && multiSelected.size === 0" class="text-sm text-gray-400 py-6 text-center">
         Sélectionnez un élément du plan.
+        <p class="mt-2 text-[11px] text-gray-300 leading-relaxed">
+          Outil « Sélection multiple » (ou Maj + glisser) pour encadrer plusieurs objets · Ctrl/Cmd + A pour tout sélectionner
+        </p>
       </div>
       <div v-else-if="multiSelected.size > 0" class="text-sm text-gray-500 py-4">
         {{ multiSelected.size }} siège(s) sélectionné(s). Utilisez la barre d'actions au-dessus du plan pour les
@@ -3133,6 +3494,18 @@ async function saveAll(opts = {}) {
             <input v-model="selectedSeatRow.seatSize" @input="scheduleSave" type="number" min="10" max="40"
               class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
           </div>
+        </div>
+
+        <div>
+          <label class="text-xs font-semibold text-gray-500">Rotation (°)</label>
+          <div class="flex items-center gap-2 mt-1">
+            <input v-model.number="selectedSeatRow.rotation" @input="scheduleSave" type="range" min="0" max="359" step="1"
+              class="flex-1 accent-indigo-500" />
+            <input v-model.number="selectedSeatRow.rotation" @input="scheduleSave" type="number" min="0" max="359"
+              class="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center" />
+          </div>
+          <button v-if="selectedSeatRow.rotation" @click="selectedSeatRow.rotation = 0; scheduleSave()"
+            class="mt-1 text-[10px] text-gray-400 hover:text-gray-600 underline">Remettre à 0°</button>
         </div>
 
         <div class="border-t border-gray-100 pt-3">

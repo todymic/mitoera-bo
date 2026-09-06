@@ -443,7 +443,7 @@ watch([() => props.seatRows, () => props.zones, () => props.tableSections, () =>
         <!-- Blocs de sièges -->
         <div v-for="row in seatRows" :key="row.id"
           class="absolute select-none"
-          :style="{ top: row.top+'px', left: row.left+'px', paddingTop: '14px' }">
+          :style="{ top: row.top+'px', left: row.left+'px', paddingTop: '14px', transform: `rotate(${row.rotation||0}deg)` }">
           <div v-if="isLod" class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white border rounded-full px-3 py-0.5 text-xs font-bold whitespace-nowrap z-10"
             :style="{ color: catById(row.categoryId).color, borderColor: catById(row.categoryId).color+'55' }">
             {{ row.section || catById(row.categoryId).name }}
