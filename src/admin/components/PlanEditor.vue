@@ -884,6 +884,41 @@ function attachedGroupsOf(rowId) {
   return seatRows.value.filter((r) => r.isGroup && r.parentRowId === rowId);
 }
 
+// Faire pivoter un bloc doit emmener ses groupes : ils reprennent l'angle et
+// leur position tourne autour du centre du bloc, sinon ils restent en place
+// pendant que la section pivote sous eux.
+function rotateAttachedGroups(parent, prevRotation) {
+  const deltaDeg = (parent.rotation || 0) - (prevRotation || 0);
+  if (!deltaDeg) return [];
+  const rad = (deltaDeg * Math.PI) / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const pb = seatRowPixelSize(parent);
+  const pcx = (parent.left || 0) + pb.w / 2;
+  const pcy = (parent.top  || 0) + pb.h / 2;
+
+  const moved = [];
+  for (const g of attachedGroupsOf(parent.id)) {
+    const gb = seatRowPixelSize(g);
+    // Les deux objets pivotent autour de leur propre centre : on déplace donc
+    // le centre du groupe, pas son coin haut-gauche.
+    const dx = (g.left || 0) + gb.w / 2 - pcx;
+    const dy = (g.top  || 0) + gb.h / 2 - pcy;
+    g.left = Math.round(pcx + dx * cos - dy * sin - gb.w / 2);
+    g.top  = Math.round(pcy + dx * sin + dy * cos - gb.h / 2);
+    g.rotation = parent.rotation || 0;
+    moved.push(g);
+  }
+  return moved;
+}
+
+function onSeatRowRotate(row, value) {
+  if (!row) return;
+  const prev = Number(row.rotation || 0);
+  row.rotation = Number(value) || 0;
+  rotateAttachedGroups(row, prev);
+  scheduleSave();
+}
+
 function displayOrder(row) {
   return (row.rowOrder?.length === row.rows)
     ? row.rowOrder
@@ -1913,6 +1948,12 @@ async function persistSelected() {
       isGroup: !!r.isGroup,
       parentRowId: r.parentRowId ?? null,
     }, props.venueId);
+    // Les groupes rattachés ont pu être déplacés ou pivotés avec le bloc
+    for (const g of attachedGroupsOf(r.id)) {
+      await adminApi.updateSeatRow(g.id, {
+        top: g.top, left: g.left, rotation: Number(g.rotation || 0),
+      }, props.venueId);
+    }
   } else if (selectedFreeZone.value) {
     const f = selectedFreeZone.value;
     await adminApi.updateFreeZone(f.id, {
@@ -4021,12 +4062,13 @@ async function saveAll(opts = {}) {
         <div>
           <label class="text-xs font-semibold text-gray-500">Rotation (°)</label>
           <div class="flex items-center gap-2 mt-1">
-            <input v-model.number="selectedSeatRow.rotation" @input="scheduleSave" type="range" min="0" max="359" step="1"
-              class="flex-1 accent-indigo-500" />
-            <input v-model.number="selectedSeatRow.rotation" @input="scheduleSave" type="number" min="0" max="359"
+            <input :value="selectedSeatRow.rotation || 0" @input="onSeatRowRotate(selectedSeatRow, $event.target.value)"
+              type="range" min="0" max="359" step="1" class="flex-1 accent-indigo-500" />
+            <input :value="selectedSeatRow.rotation || 0" @input="onSeatRowRotate(selectedSeatRow, $event.target.value)"
+              type="number" min="0" max="359"
               class="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center" />
           </div>
-          <button v-if="selectedSeatRow.rotation" @click="selectedSeatRow.rotation = 0; scheduleSave()"
+          <button v-if="selectedSeatRow.rotation" @click="onSeatRowRotate(selectedSeatRow, 0)"
             class="mt-1 text-[10px] text-gray-400 hover:text-gray-600 underline">Remettre à 0°</button>
         </div>
 
