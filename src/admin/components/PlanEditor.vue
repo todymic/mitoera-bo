@@ -46,7 +46,7 @@ async function undoLastPlacement() {
   if (placementHistory.value.length === 0) return;
   const last = placementHistory.value.pop();
   try {
-    if (last.kind === 'seatRow') {
+    if (last.kind === 'seatRow' || last.kind === 'seatRowGroup') {
       await adminApi.deleteSeatRow(last.id, props.venueId);
       seatRows.value = seatRows.value.filter((x) => x.id !== last.id);
     } else if (last.kind === 'freeZone') {
@@ -212,6 +212,7 @@ async function onCanvasPlacementClick(ev) {
   panWasDrag = false;
   let created = null;
   if (tool === 'seatRow')      created = await addSeatRow(x, y);
+  else if (tool === 'seatRowGroup') created = await addSeatRowGroup(x, y);
   else if (tool === 'freeZone')     created = await addFreeZone(x, y);
   else if (tool === 'tableZone')    created = await addTableZone(x, y);
   else if (tool === 'tableSection') created = await addTableSection(x, y);
@@ -846,6 +847,82 @@ function seatRowPixelSize(row) {
   return { w: (row.cols || 1) * cellSize + 28, h: (row.rows || 1) * cellSize + 20 };
 }
 
+// ---------- Groupes de rangées rattachés à une section ----------
+// Un groupe est un seatRow marqué isGroup : mêmes réglages qu'un bloc, mais il
+// vit à côté d'une section et adopte son préfixe de clés sans fusionner sa grille.
+const hoveredSeatRowTarget = ref(null);
+
+// Sections nommées déjà présentes sur le plan
+const existingSections = computed(() => {
+  const names = new Set();
+  for (const r of seatRows.value)       if (r.section) names.add(r.section);
+  for (const t of tableZones.value)     if (t.section) names.add(t.section);
+  for (const ts of tableSections.value) if (ts.section) names.add(ts.section);
+  return [...names].sort();
+});
+
+// Labels de rangée déjà pris dans une section, tous blocs confondus
+function usedRowLabels(sectionName, excludeId = null) {
+  const used = new Set();
+  for (const r of seatRows.value) {
+    if (r.id === excludeId || (r.section || '') !== sectionName) continue;
+    const ro = r.rowOverrides || {};
+    for (let i = 0; i < (r.rows || 0); i++) {
+      used.add(String(ro[i]?.label ?? computeAxisLabel(i, r.rows, r.rowFormat || 'A-Z', r.rowDirection || 'normal')));
+    }
+  }
+  return used;
+}
+
+// Attribue au groupe les premiers labels de rangée libres de la section :
+// c'est ce qui garantit qu'aucune clé de siège n'entre en collision.
+function assignFreeRowLabels(group, sectionName, format = null) {
+  const used = usedRowLabels(sectionName, group.id);
+  const fmt = format || group.rowFormat || 'A-Z';
+  const overrides = { ...(group.rowOverrides || {}) };
+  let startAt = 0;
+  for (let r = 0; r < (group.rows || 1); r++) {
+    let label;
+    do { label = computeAxisLabel(0, 1, fmt, 'normal', startAt); startAt += 1; } while (used.has(label));
+    used.add(label);
+    overrides[r] = { ...(overrides[r] || {}), label };
+  }
+  group.rowOverrides = overrides;
+  return Object.keys(overrides)
+    .filter((k) => Number(k) < (group.rows || 1))
+    .map((k) => overrides[k].label);
+}
+
+async function attachGroupToSection(group, sectionName, format = null) {
+  if (!group || !sectionName) return;
+  group.section = sectionName;
+  const labels = assignFreeRowLabels(group, sectionName, format);
+  await adminApi.updateSeatRow(group.id, {
+    section: group.section,
+    rowOverrides: group.rowOverrides,
+  }, props.venueId);
+  isDirty.value = true;
+  emit('changed');
+  showToast(`Groupe rattaché à « ${sectionName} » — rangée(s) ${labels.join(', ')}`, 'success', 3500);
+}
+
+async function detachGroup(group) {
+  if (!group) return;
+  group.section = '';
+  await adminApi.updateSeatRow(group.id, { section: '' }, props.venueId);
+  isDirty.value = true;
+  emit('changed');
+}
+
+function onGroupSectionChange(ev) {
+  const row = selectedSeatRow.value;
+  if (!row) return;
+  const name = ev.target.value;
+  if (!name) { detachGroup(row); return; }
+  const target = seatRows.value.find((r) => !r.isGroup && r.section === name);
+  attachGroupToSection(row, name, target?.rowFormat);
+}
+
 function findParentZone(row) {
   const { w, h } = seatRowPixelSize(row);
   const cx = (row.left || 0) + w / 2;
@@ -976,6 +1053,19 @@ function onPointerMove(ev) {
     } else {
       hoveredTableSection.value = null;
     }
+    // Survol d'un bloc de section pendant le déplacement d'un groupe de rangées
+    if (drag.kind === 'seatRow' && item && item.isGroup && !drag.group) {
+      const g = seatRowPixelSize(item);
+      const cx = item.left + g.w / 2;
+      const cy = item.top  + g.h / 2;
+      hoveredSeatRowTarget.value = seatRows.value.find((r) => {
+        if (r.id === item.id || r.isGroup || !r.section) return false;
+        const b = seatRowPixelSize(r);
+        return cx >= r.left && cx <= r.left + b.w && cy >= r.top && cy <= r.top + b.h;
+      }) ?? null;
+    } else {
+      hoveredSeatRowTarget.value = null;
+    }
   } else if (drag.mode === 'resize') {
     const item = listFor(drag.kind).find((x) => x.id === drag.id);
     if (item) {
@@ -1045,7 +1135,12 @@ async function stopDrag() {
   window.removeEventListener('pointerup', stopDrag);
 
   const item = listFor(kind).find((x) => x.id === id);
-  if (!item || !drag.moved) { hoveredTableSection.value = null; drag.group = null; return; }
+  if (!item || !drag.moved) {
+    hoveredTableSection.value = null;
+    hoveredSeatRowTarget.value = null;
+    drag.group = null;
+    return;
+  }
   isDirty.value = true;
 
   // Déplacement groupé : on enregistre la nouvelle position de chaque objet
@@ -1096,6 +1191,17 @@ async function stopDrag() {
     return;
   }
   hoveredTableSection.value = null;
+
+  // Rattachement d'un groupe de rangées lâché sur le bloc d'une section
+  if (mode === 'move' && kind === 'seatRow' && item.isGroup && hoveredSeatRowTarget.value) {
+    const target = hoveredSeatRowTarget.value;
+    hoveredSeatRowTarget.value = null;
+    await persistPosition(kind, item);
+    await attachGroupToSection(item, target.section, target.rowFormat);
+    scheduleAutoSave();
+    return;
+  }
+  hoveredSeatRowTarget.value = null;
 
   if (mode === 'move') {
     await persistPosition(kind, item);
@@ -1206,6 +1312,21 @@ async function addSeatRow(left = 40, top = 40) {
   emit('changed');
   return r;
 }
+// Petit groupe autonome : une rangée de 3 sièges, sans section tant qu'il n'est pas rattaché
+async function addSeatRowGroup(left = 40, top = 40) {
+  if (categories.value.length === 0) return null;
+  const r = await adminApi.createSeatRow(props.venueId, {
+    section: '', label: 'Groupe de rangées', categoryId: categories.value[0].id,
+    top, left, rows: 1, cols: 3, shape: 'square', seatSize: 20, rotation: 0,
+    isGroup: true,
+  });
+  seatRows.value.push(r);
+  selectSeatRow(r);
+  isDirty.value = true;
+  emit('changed');
+  return r;
+}
+
 async function addFreeZone(left = 300, top = 40) {
   const fz = await adminApi.createFreeZone(props.venueId, {
     label: 'Zone libre', icon: 'none', color: '#6b7280', pattern: 'solid',
@@ -1669,6 +1790,7 @@ async function persistSelected() {
       seatLabelOverrides: r.seatLabelOverrides || {},
       rowOverrides: r.rowOverrides || {},
       rowOrder: r.rowOrder || [],
+      isGroup: !!r.isGroup,
     }, props.venueId);
   } else if (selectedFreeZone.value) {
     const f = selectedFreeZone.value;
@@ -2248,16 +2370,18 @@ async function saveAll(opts = {}) {
 
       <div class="w-6 h-px bg-gray-100 my-0.5"></div>
 
-      <!-- Rangée de sièges -->
+      <!-- Rangée de sièges (avec sous-options) -->
       <div class="relative group">
         <button
           :disabled="categories.length === 0"
           @click="selectTool('seatRow')"
-          class="w-10 h-10 rounded-xl flex items-center justify-center transition disabled:opacity-40"
-          :class="activeTool === 'seatRow'
+          class="w-10 h-10 rounded-xl flex items-center justify-center transition disabled:opacity-40 relative"
+          :class="activeTool === 'seatRow' || activeTool === 'seatRowGroup'
             ? 'bg-gray-900 text-white ring-2 ring-gray-900 ring-offset-1'
             : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'"
         >
+          <!-- Chevron : signale les sous-options -->
+          <span class="absolute right-0.5 bottom-0.5 leading-none text-[8px] opacity-60">▸</span>
           <!-- Icône rangées de sièges : 3 lignes de petits ronds -->
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none">
             <circle cx="5"  cy="8" r="2" fill="currentColor"/>
@@ -2269,11 +2393,39 @@ async function saveAll(opts = {}) {
             <rect x="3" y="17.5" width="18" height="2" rx="1" fill="currentColor" opacity="0.4"/>
           </svg>
         </button>
-        <div class="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50
-          bg-gray-900 text-white text-xs font-semibold whitespace-nowrap rounded-lg px-2.5 py-1.5 shadow-lg
-          opacity-0 group-hover:opacity-100 transition-opacity">
-          Rangée de sièges
-          <div class="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+        <!-- Sous-options : le padding gauche garde le survol continu jusqu'au panneau -->
+        <div class="absolute left-full top-1/2 -translate-y-1/2 pl-2 z-50 hidden group-hover:block">
+          <div class="bg-white rounded-xl shadow-xl border border-gray-200 p-1.5 flex flex-col gap-1 w-52">
+            <button
+              :disabled="categories.length === 0"
+              @click="selectTool('seatRow')"
+              class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition disabled:opacity-40"
+              :class="activeTool === 'seatRow' ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-700'">
+              <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
+                <circle cx="5" cy="8" r="2" fill="currentColor"/><circle cx="12" cy="8" r="2" fill="currentColor"/><circle cx="19" cy="8" r="2" fill="currentColor"/>
+                <circle cx="5" cy="14" r="2" fill="currentColor"/><circle cx="12" cy="14" r="2" fill="currentColor"/><circle cx="19" cy="14" r="2" fill="currentColor"/>
+                <rect x="3" y="17.5" width="18" height="2" rx="1" fill="currentColor" opacity="0.4"/>
+              </svg>
+              <span class="min-w-0">
+                <span class="block text-xs font-semibold">Bloc de rangées</span>
+                <span class="block text-[10px] opacity-60 leading-tight">Grille complète, porte la section</span>
+              </span>
+            </button>
+            <button
+              :disabled="categories.length === 0"
+              @click="selectTool('seatRowGroup')"
+              class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition disabled:opacity-40"
+              :class="activeTool === 'seatRowGroup' ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-700'">
+              <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
+                <circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/>
+                <rect x="1.5" y="7.5" width="21" height="9" rx="2" stroke="currentColor" stroke-width="1.3" stroke-dasharray="3 2" fill="none"/>
+              </svg>
+              <span class="min-w-0">
+                <span class="block text-xs font-semibold">Groupe de rangées</span>
+                <span class="block text-[10px] opacity-60 leading-tight">Autonome, à rattacher à une section</span>
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -3001,7 +3153,13 @@ async function saveAll(opts = {}) {
               :style="{
                 background: catById(row.categoryId).color + '14',
                 borderColor: catById(row.categoryId).color + '55',
-                outline: selected && selected.kind==='seatRow' && selected.id===row.id ? `2px solid ${catById(row.categoryId).color}` : 'none',
+                outline: hoveredSeatRowTarget?.id === row.id
+                  ? `3px dashed ${catById(row.categoryId).color}`
+                  : selected && selected.kind==='seatRow' && selected.id===row.id
+                    ? `2px solid ${catById(row.categoryId).color}`
+                    : row.isGroup && !row.section
+                      ? '2px dashed #9ca3af'
+                      : 'none',
                 outlineOffset: '2px',
                 position: 'relative',
               }">
@@ -3652,7 +3810,27 @@ async function saveAll(opts = {}) {
 
       <!-- Propriétés d'un bloc de sièges -->
       <div v-else-if="selectedSeatRow" class="flex flex-col gap-3">
-        <div>
+        <!-- Groupe de rangées : rattachement à une section existante -->
+        <div v-if="selectedSeatRow.isGroup">
+          <label class="text-xs font-semibold text-gray-500">Section de rattachement</label>
+          <select :value="selectedSeatRow.section || ''" @change="onGroupSectionChange($event)"
+            class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400">
+            <option value="">— Non rattaché —</option>
+            <option v-for="sec in existingSections" :key="sec" :value="sec">{{ sec }}</option>
+          </select>
+          <p class="text-[10px] text-gray-400 mt-0.5">
+            Le groupe garde sa numérotation propre. Au rattachement, ses rangées reçoivent
+            automatiquement les premiers libellés libres de la section pour éviter les clés en doublon.
+          </p>
+          <p v-if="!selectedSeatRow.section" class="text-[10px] text-amber-600 mt-1">
+            Non rattaché — glissez-le sur le bloc d'une section, ou choisissez-la ci-dessus.
+          </p>
+          <p v-else class="text-[10px] text-gray-500 mt-1">
+            Rangée(s) :
+            <span class="font-mono font-semibold">{{ seatGridByRow(selectedSeatRow).map(r => r.rowLabel).join(', ') }}</span>
+          </p>
+        </div>
+        <div v-else>
           <label class="text-xs font-semibold text-gray-500">Section</label>
           <input v-model="selectedSeatRow.section" @input="scheduleSave" placeholder="ex. TRIBUNE-NORD"
             class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400" />
