@@ -119,12 +119,21 @@ function buildSeats(chartObjects) {
       const section = obj.section || obj.label || obj.id || 'S';
       const rows = obj.rows || 1, cols = obj.cols || 1;
       const disabled = obj.disabledSeats || [];
+      const deleted  = obj.deletedSeats  || [];
+      const rowOver  = obj.rowOverrides  || {};
       for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
+        // Réglages par rangée : mêmes formules que EventPlanView et EventService,
+        // sinon le total de places et la sélection portent sur de mauvaises clés.
+        const ov         = rowOver[r] || {};
+        const rowCols    = ov.cols       != null ? ov.cols       : cols;
+        const colStartAt = ov.colStartAt != null ? ov.colStartAt : 0;
+        const rowLabel   = ov.label      != null && ov.label !== ''
+          ? String(ov.label)
+          : computeAxisLabel(r, rows, obj.rowFormat || 'A-Z', obj.rowDirection || 'normal');
+        for (let c = 0; c < rowCols; c++) {
           const posKey = `${r}-${c}`;
-          if (disabled.includes(posKey)) continue;
-          const rowLabel = computeAxisLabel(r, rows, obj.rowFormat || 'A-Z', obj.rowDirection || 'normal');
-          const colLabel = computeAxisLabel(c, cols, obj.colFormat || '1-9', obj.colDirection || 'normal');
+          if (disabled.includes(posKey) || deleted.includes(posKey)) continue;
+          const colLabel = computeAxisLabel(c, rowCols, obj.colFormat || '1-9', obj.colDirection || 'normal', colStartAt);
           all.push({ key: `${section}-${rowLabel}-${colLabel}`, section, categoryId: obj.categoryId });
         }
       }

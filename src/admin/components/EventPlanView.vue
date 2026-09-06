@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue';
-import { computeSeatLabel, computeAxisLabel } from '../../services/seatLabel';
+import { computeAxisLabel } from '../../services/seatLabel';
 import { iconById } from '../../services/icons';
 import MiniMap from '../../components/MiniMap.vue';
 
@@ -152,18 +152,27 @@ function buildSeats(row) {
   const disabled  = row.disabledSeats  || [];
   const deleted   = row.deletedSeats   || [];
   const overrides = row.categoryOverrides || {};
+  const labelOver = row.seatLabelOverrides || {};
+  const rowOver   = row.rowOverrides || {};
   const section   = row.section || row.label || row.id;
   for (let r = 0; r < row.rows; r++) {
-    for (let c = 0; c < row.cols; c++) {
+    // Réglages propres à la rangée : sans eux les clés produites ici ne
+    // correspondraient pas à celles écrites en base par EventService.
+    const ov         = rowOver[r] || {};
+    const rowCols    = ov.cols       != null ? ov.cols       : row.cols;
+    const colStartAt = ov.colStartAt != null ? ov.colStartAt : 0;
+    const rowLabel   = ov.label      != null && ov.label !== ''
+      ? String(ov.label)
+      : computeAxisLabel(r, row.rows, row.rowFormat, row.rowDirection);
+    for (let c = 0; c < rowCols; c++) {
       const posKey   = `${r}-${c}`;
       const isDeleted  = deleted.includes(posKey);
       const isDisabled = !isDeleted && disabled.includes(posKey);
-      const rowLabel = computeAxisLabel(r, row.rows, row.rowFormat, row.rowDirection);
-      const colLabel = computeAxisLabel(c, row.cols, row.colFormat, row.colDirection);
+      const colLabel = computeAxisLabel(c, rowCols, row.colFormat, row.colDirection, colStartAt);
       const seatKey  = `${section}-${rowLabel}-${colLabel}`;
       seats.push({
-        seatKey, posKey,
-        label:    computeSeatLabel(r, c, row.rows, row.cols, row),
+        seatKey, posKey, r,
+        label:    labelOver[posKey] ?? `${rowLabel}${colLabel}`,
         rowLabel, colLabel, section,
         categoryId: overrides[posKey] || row.categoryId,
         planStatus: isDeleted ? 'deleted' : isDisabled ? 'disabled' : 'available',
@@ -171,6 +180,20 @@ function buildSeats(row) {
     }
   }
   return seats;
+}
+
+// Découpage rangée par rangée, dans l'ordre d'affichage, avec le décalage horizontal
+function buildSeatsByRow(row) {
+  const all = buildSeats(row);
+  const rowOver = row.rowOverrides || {};
+  const order = (row.rowOrder?.length === row.rows)
+    ? row.rowOrder
+    : Array.from({ length: row.rows }, (_, i) => i);
+  return order.map((dataR) => ({
+    r: dataR,
+    colOffset: rowOver[dataR]?.colOffset ?? 0,
+    seats: all.filter((s) => s.r === dataR),
+  }));
 }
 
 function buildTableSeats(t) {
@@ -450,9 +473,15 @@ watch([() => props.seatRows, () => props.zones, () => props.tableSections, () =>
           </div>
           <div class="rounded-lg p-1.5" :class="isLod ? 'opacity-50 blur-[2px]' : ''"
             :style="{ background: catById(row.categoryId).color+'14', border: `1px solid ${catById(row.categoryId).color}55` }">
-            <div class="grid gap-1.5"
-              :style="{ gridTemplateColumns: `repeat(${row.cols}, minmax(${row.shape==='rounded'?(row.seatSize||22)*1.5:(row.seatSize||22)}px, auto))` }">
-              <div v-for="seat in buildSeats(row)" :key="seat.seatKey"
+            <div class="flex flex-col gap-1.5">
+            <div v-for="line in buildSeatsByRow(row)" :key="line.r" class="flex gap-1.5">
+              <!-- colOffset se compte en colonnes : cases vides pour pousser la rangée -->
+              <div v-for="ph in line.colOffset" :key="'ph-' + line.r + '-' + ph"
+                :style="{
+                  height: (row.seatSize||22)+'px',
+                  minWidth: row.shape==='rounded' ? ((row.seatSize||22)*1.5)+'px' : (row.seatSize||22)+'px',
+                }"></div>
+              <div v-for="seat in line.seats" :key="seat.seatKey"
                 class="relative flex items-center justify-center leading-none font-semibold transition-all overflow-hidden"
                 :class="[
                   seat.planStatus==='disabled' ? 'cursor-not-allowed' : (isSeatClickable(seat) ? 'cursor-pointer' : 'cursor-default'),
@@ -478,6 +507,7 @@ watch([() => props.seatRows, () => props.zones, () => props.tableSections, () =>
                 </svg>
                 <span v-else>{{ (row.seatSize||22) >= 14 && seat.planStatus!=='deleted' ? seat.label : '' }}</span>
               </div>
+            </div>
             </div>
           </div>
         </div>
