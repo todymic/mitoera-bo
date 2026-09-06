@@ -825,8 +825,25 @@ function startDrag(ev, kind, item) {
     : null;
   drag.offsetX = (ev.clientX - canvasRect.left) / z - item.left;
   drag.offsetY = (ev.clientY - canvasRect.top)  / z - item.top;
+  // Déterminer la zone parente d'un seatRow (pour contraindre le déplacement)
+  drag.parentZone = (kind === 'seatRow' && !drag.group) ? findParentZone(item) : null;
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', stopDrag);
+}
+
+function seatRowPixelSize(row) {
+  const cellSize = (row.seatSize || 22) + 4;
+  return { w: (row.cols || 1) * cellSize + 28, h: (row.rows || 1) * cellSize + 20 };
+}
+
+function findParentZone(row) {
+  const { w, h } = seatRowPixelSize(row);
+  const cx = (row.left || 0) + w / 2;
+  const cy = (row.top  || 0) + h / 2;
+  return zones.value.find((z) =>
+    cx >= (z.left || 0) && cx <= (z.left || 0) + (z.width  || 200) &&
+    cy >= (z.top  || 0) && cy <= (z.top  || 0) + (z.height || 70)
+  ) ?? null;
 }
 
 // ---------- Redimensionnement (zones + zones libres), par côté ----------
@@ -927,6 +944,13 @@ function onPointerMove(ev) {
           if (o) { o.left = Math.round(g.left + dLeft); o.top = Math.round(g.top + dTop); }
         }
       } else {
+        // Contraindre le seatRow à rester dans sa zone parente
+        if (drag.parentZone) {
+          const pz = drag.parentZone;
+          const { w, h } = seatRowPixelSize(item);
+          newLeft = Math.max(pz.left || 0, Math.min((pz.left || 0) + (pz.width  || 200) - w, newLeft));
+          newTop  = Math.max(pz.top  || 0, Math.min((pz.top  || 0) + (pz.height || 70)  - h, newTop));
+        }
         item.left = newLeft; item.top = newTop;
       }
     }
@@ -3606,9 +3630,17 @@ async function saveAll(opts = {}) {
             </div>
             <div>
               <label class="text-[11px] text-gray-500">Sens</label>
-              <select v-model="selectedSeatRow.rowDirection" @change="scheduleSave" class="w-full mt-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs">
-                <option v-for="d in DIRECTIONS" :key="d.id" :value="d.id">{{ d.label }}</option>
-              </select>
+              <button
+                @click="selectedSeatRow.rowDirection = (!selectedSeatRow.rowDirection || selectedSeatRow.rowDirection === 'normal') ? 'reversed' : 'normal'; scheduleSave()"
+                class="w-full mt-1 flex items-center justify-between gap-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs hover:bg-gray-50 transition font-mono"
+                :title="(!selectedSeatRow.rowDirection || selectedSeatRow.rowDirection === 'normal') ? 'Cliquez pour inverser' : 'Cliquez pour remettre en ordre normal'"
+              >
+                <span v-if="!selectedSeatRow.rowDirection || selectedSeatRow.rowDirection === 'normal'" class="text-gray-600">A B C ↓</span>
+                <span v-else class="text-gray-600">↑ C B A</span>
+                <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
+                </svg>
+              </button>
             </div>
           </div>
 
@@ -3622,9 +3654,17 @@ async function saveAll(opts = {}) {
             </div>
             <div>
               <label class="text-[11px] text-gray-500">Sens</label>
-              <select v-model="selectedSeatRow.colDirection" @change="scheduleSave" class="w-full mt-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs">
-                <option v-for="d in DIRECTIONS" :key="d.id" :value="d.id">{{ d.label }}</option>
-              </select>
+              <button
+                @click="selectedSeatRow.colDirection = (!selectedSeatRow.colDirection || selectedSeatRow.colDirection === 'normal') ? 'reversed' : 'normal'; scheduleSave()"
+                class="w-full mt-1 flex items-center justify-between gap-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs hover:bg-gray-50 transition font-mono"
+                :title="(!selectedSeatRow.colDirection || selectedSeatRow.colDirection === 'normal') ? 'Cliquez pour inverser' : 'Cliquez pour remettre en ordre normal'"
+              >
+                <span v-if="!selectedSeatRow.colDirection || selectedSeatRow.colDirection === 'normal'" class="text-gray-600">1 2 3 →</span>
+                <span v-else class="text-gray-600">← 3 2 1</span>
+                <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
+                </svg>
+              </button>
             </div>
           </div>
         </div>

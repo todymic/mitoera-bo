@@ -83,28 +83,40 @@ function catById(id) {
 
 function buildSeats(row) {
   const seats = [];
-  const disabled = row.disabledSeats || [];
-  const deleted  = row.deletedSeats  || [];
-  const overrides = row.categoryOverrides || {};
-  const section = row.section || row.label || row.id;
+  const disabled  = row.disabledSeats    || [];
+  const deleted   = row.deletedSeats     || [];
+  const catOver   = row.categoryOverrides || {};
+  const rowOver   = row.rowOverrides     || {};
+  const section   = row.section || row.label || row.id;
   for (let r = 0; r < row.rows; r++) {
-    for (let c = 0; c < row.cols; c++) {
-      const posKey = `${r}-${c}`;
+    const rOver      = rowOver[r] || {};
+    const cols       = rOver.cols      != null ? rOver.cols      : row.cols;
+    const colStartAt = rOver.colStartAt != null ? rOver.colStartAt : 0;
+    const rowLabel   = rOver.label     != null ? rOver.label     : computeAxisLabel(r, row.rows, row.rowFormat, row.rowDirection);
+    for (let c = 0; c < cols; c++) {
+      const posKey    = `${r}-${c}`;
       const isDeleted  = deleted.includes(posKey);
       const isDisabled = !isDeleted && disabled.includes(posKey);
-      const rowLabel = computeAxisLabel(r, row.rows, row.rowFormat, row.rowDirection);
-      const colLabel = computeAxisLabel(c, row.cols, row.colFormat, row.colDirection);
+      const colLabel   = computeAxisLabel(c, cols, row.colFormat, row.colDirection, colStartAt);
       seats.push({
         id: `${section}-${rowLabel}-${colLabel}`,
-        posKey,
-        label:    computeSeatLabel(r, c, row.rows, row.cols, row),
+        posKey, r, c, cols,
+        label: `${rowLabel}${colLabel}`,
         rowLabel, colLabel, section,
-        categoryId: overrides[posKey] || row.categoryId,
+        categoryId: catOver[posKey] || row.categoryId,
         status: isDeleted ? 'deleted' : isDisabled ? 'disabled' : 'available',
       });
     }
   }
   return seats;
+}
+
+function buildSeatsByRow(row) {
+  const all = buildSeats(row);
+  return Array.from({ length: row.rows }, (_, r) => ({
+    r,
+    seats: all.filter((s) => s.r === r),
+  }));
 }
 
 // ---- Canvas dynamic size ----
@@ -401,30 +413,32 @@ watch(
                   background: catById(row.categoryId).color + '14',
                   borderColor: catById(row.categoryId).color + '55',
                 }">
-                <div class="grid gap-1.5 lod-seat-grid"
-                  :class="isLod ? 'lod-blur' : ''"
-                  :style="{ gridTemplateColumns: `repeat(${row.cols}, minmax(${row.shape === 'rounded' ? (row.seatSize || 22) * 1.5 : (row.seatSize || 22)}px, auto))` }">
-                  <div
-                    v-for="seat in buildSeats(row)" :key="seat.id"
-                    class="seat flex items-center justify-center leading-none font-semibold cursor-default"
-                    :class="[
-                      seat.status === 'disabled' ? 'seat-disabled' : '',
-                      row.shape === 'rounded' ? 'seat-rounded' : '',
-                    ]"
-                    :style="{
-                      height: (row.seatSize || 22) + 'px',
-                      minWidth: row.shape === 'rounded' ? ((row.seatSize || 22) * 1.5) + 'px' : (row.seatSize || 22) + 'px',
-                      padding: row.shape === 'rounded' ? '0 6px' : '0',
-                      fontSize: Math.max(6, Math.floor((row.seatSize || 22) * (seat.label && seat.label.length > 2 ? 0.28 : 0.4))) + 'px',
-                      borderRadius: row.shape === 'round' ? '50%' : row.shape === 'rounded' ? '10px' : '4px',
-                      visibility: seat.status === 'deleted' ? 'hidden' : 'visible',
-                      color: seat.status === 'disabled' ? '#9ca3af' : '#fff',
-                      background: seat.status === 'disabled' ? '#eef0f2' : catById(seat.categoryId).color,
-                      border: seat.status === 'disabled' ? '1px solid #d8dade' : 'none',
-                    }"
-                    @mouseenter="seat.status !== 'deleted' && onSeatHover($event, row, seat)"
-                    @mouseleave="onSeatLeave"
-                  ></div>
+                <!-- Rendu rangée par rangée pour respecter les overrides par rangée -->
+                <div :class="isLod ? 'lod-blur' : ''" class="flex flex-col gap-1.5">
+                  <template v-for="rowGroup in buildSeatsByRow(row)" :key="rowGroup.r">
+                    <div class="flex gap-1.5">
+                      <div
+                        v-for="seat in rowGroup.seats" :key="seat.id"
+                        class="seat flex items-center justify-center leading-none font-semibold cursor-default"
+                        :class="[
+                          seat.status === 'disabled' ? 'seat-disabled' : '',
+                          row.shape === 'rounded' ? 'seat-rounded' : '',
+                        ]"
+                        :style="{
+                          height: (row.seatSize || 22) + 'px',
+                          minWidth: row.shape === 'rounded' ? ((row.seatSize || 22) * 1.5) + 'px' : (row.seatSize || 22) + 'px',
+                          padding: row.shape === 'rounded' ? '0 6px' : '0',
+                          borderRadius: row.shape === 'round' ? '50%' : row.shape === 'rounded' ? '10px' : '4px',
+                          visibility: seat.status === 'deleted' ? 'hidden' : 'visible',
+                          color: seat.status === 'disabled' ? '#9ca3af' : '#fff',
+                          background: seat.status === 'disabled' ? '#eef0f2' : catById(seat.categoryId).color,
+                          border: seat.status === 'disabled' ? '1px solid #d8dade' : 'none',
+                        }"
+                        @mouseenter="seat.status !== 'deleted' && onSeatHover($event, row, seat)"
+                        @mouseleave="onSeatLeave"
+                      ></div>
+                    </div>
+                  </template>
                 </div>
               </div>
             </div>
