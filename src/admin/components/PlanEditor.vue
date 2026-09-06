@@ -874,8 +874,10 @@ const existingSections = computed(() => {
 // puis une rangée tous les (seatSize + 6px de gap).
 const CARD_INSET = 7;
 const ROW_GAP = 6;
+// Un groupe est rendu sans carte : ses sièges commencent à son bord exact
+function cardInsetOf(row) { return row.isGroup ? 0 : CARD_INSET; }
 function rowTopOffset(row, displayPos) {
-  return CARD_INSET + displayPos * ((row.seatSize || 22) + ROW_GAP);
+  return cardInsetOf(row) + displayPos * ((row.seatSize || 22) + ROW_GAP);
 }
 // Groupes rattachés à un bloc — ils font partie de la section et suivent ses déplacements
 function attachedGroupsOf(rowId) {
@@ -914,7 +916,7 @@ function snapGroupToRow(group, target) {
   const order = displayOrder(target);
   let bestPos = 0, bestDist = Infinity;
   for (let p = 0; p < order.length; p++) {
-    const d = Math.abs((target.top || 0) + rowTopOffset(target, p) - ((group.top || 0) + CARD_INSET));
+    const d = Math.abs((target.top || 0) + rowTopOffset(target, p) - ((group.top || 0) + cardInsetOf(group)));
     if (d < bestDist) { bestDist = d; bestPos = p; }
   }
 
@@ -924,7 +926,10 @@ function snapGroupToRow(group, target) {
   group.categoryId = target.categoryId;
   group.rotation   = group.rotation || 0;
 
-  group.top = Math.max(0, Math.round((target.top || 0) + bestPos * ((group.seatSize || 22) + ROW_GAP)));
+  // Aligner la 1re rangée du groupe sur celle du bloc, insets compris
+  group.top = Math.max(0, Math.round(
+    (target.top || 0) + rowTopOffset(target, bestPos) - cardInsetOf(group),
+  ));
 
   const tBox = seatRowPixelSize(target);
   const gBox = seatRowPixelSize(group);
@@ -3267,23 +3272,26 @@ async function saveAll(opts = {}) {
             }"
             @pointerdown="startDrag($event, 'seatRow', row)"
           >
-            <!-- Carte dont la couleur suit la catégorie -->
-            <div class="editor-seat-card pointer-events-none" style="pointer-events:none"
+            <!-- Carte dont la couleur suit la catégorie.
+                 Un groupe n'en a pas : il fait partie de la section, son encadré
+                 doit coller aux sièges comme une simple poignée de sélection. -->
+            <div class="pointer-events-none" :class="row.isGroup ? '' : 'editor-seat-card'" style="pointer-events:none"
               :style="{
-                background: catById(row.categoryId).color + '14',
-                borderColor: catById(row.categoryId).color + '55',
+                background: row.isGroup ? 'transparent' : catById(row.categoryId).color + '14',
+                borderColor: row.isGroup ? 'transparent' : catById(row.categoryId).color + '55',
                 outline: hoveredSeatRowTarget?.id === row.id
                   ? `3px dashed ${catById(row.categoryId).color}`
                   : selected && selected.kind==='seatRow' && selected.id===row.id
-                    ? `2px solid ${catById(row.categoryId).color}`
+                    ? (row.isGroup ? `1.5px solid ${catById(row.categoryId).color}` : `2px solid ${catById(row.categoryId).color}`)
                     : row.isGroup && !row.section
-                      ? '2px dashed #9ca3af'
+                      ? '1.5px dashed #9ca3af'
                       : 'none',
-                outlineOffset: '2px',
+                outlineOffset: row.isGroup ? '3px' : '2px',
+                borderRadius: row.isGroup ? '4px' : undefined,
                 position: 'relative',
               }">
-              <!-- Badge LOD centré -->
-              <div v-if="itemShowBadge(row)"
+              <!-- Badge LOD centré — pas sur un groupe, la section l'affiche déjà -->
+              <div v-if="itemShowBadge(row) && !row.isGroup"
                 class="lod-section-badge"
                 :style="{
                   color: catById(row.categoryId).color,
@@ -3307,7 +3315,7 @@ async function saveAll(opts = {}) {
                   }"
                 >
                   <!-- Poignée réordonnancement (visible seulement quand le bloc est sélectionné) -->
-                  <div v-if="selected && selected.kind==='seatRow' && selected.id===row.id"
+                  <div v-if="!row.isGroup && selected && selected.kind==='seatRow' && selected.id===row.id"
                     class="shrink-0 flex flex-col items-center justify-center gap-0.5 cursor-grab active:cursor-grabbing"
                     style="width:8px;padding:2px 0;pointer-events:auto;"
                     :title="'Glisser pour déplacer la rangée ' + rowLabel"
@@ -3317,8 +3325,8 @@ async function saveAll(opts = {}) {
                     <span style="width:6px;height:1.5px;border-radius:1px;background:currentColor;display:block;opacity:0.4;"></span>
                     <span style="width:6px;height:1.5px;border-radius:1px;background:currentColor;display:block;opacity:0.4;"></span>
                   </div>
-                  <!-- Label rangée GAUCHE -->
-                  <div v-if="(row.seatSize || 22) >= 12"
+                  <!-- Label rangée GAUCHE — masqué sur un groupe, le bloc l'affiche déjà -->
+                  <div v-if="!row.isGroup && (row.seatSize || 22) >= 12"
                     class="shrink-0 flex items-center justify-end font-bold leading-none pointer-events-none select-none"
                     :style="{
                       width: '16px',
@@ -3359,8 +3367,8 @@ async function saveAll(opts = {}) {
                     @pointerdown.stop
                     @click.stop="onSeatClick(row, seat, $event)"
                   >{{ (row.seatSize || 22) >= 14 && seat.status !== 'deleted' ? seat.colLabel : '' }}</div>
-                  <!-- Label rangée DROITE -->
-                  <div v-if="(row.seatSize || 22) >= 12"
+                  <!-- Label rangée DROITE — masqué sur un groupe -->
+                  <div v-if="!row.isGroup && (row.seatSize || 22) >= 12"
                     class="shrink-0 flex items-center justify-start font-bold leading-none pointer-events-none select-none"
                     :style="{
                       width: '16px',
