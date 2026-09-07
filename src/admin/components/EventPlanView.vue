@@ -517,7 +517,7 @@ watch([() => props.seatRows, () => props.zones, () => props.tableSections, () =>
                   <line x1="1" y1="1" x2="9" y2="9" :stroke="crossColor(seat.seatKey, seat.categoryId, seat.planStatus)" stroke-width="2" stroke-linecap="round"/>
                   <line x1="9" y1="1" x2="1" y2="9" :stroke="crossColor(seat.seatKey, seat.categoryId, seat.planStatus)" stroke-width="2" stroke-linecap="round"/>
                 </svg>
-                <span v-else>{{ (row.seatSize||22) >= 14 && seat.planStatus!=='deleted' ? seat.label : '' }}</span>
+                <span v-else>{{ (row.seatSize||22) >= 14 && seat.planStatus!=='deleted' ? seat.colLabel : '' }}</span>
               </div>
               <!-- Libelle de rangee DROITE -->
               <div v-if="!row.isGroup && (row.seatSize||22) >= 12"

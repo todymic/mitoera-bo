@@ -452,7 +452,7 @@ watch(
                         }"
                         @mouseenter="seat.status !== 'deleted' && seat.status !== 'placeholder' && onSeatHover($event, row, seat)"
                         @mouseleave="onSeatLeave"
-                      ></div>
+                      >{{ (row.seatSize || 22) >= 14 && seat.status !== 'deleted' && seat.status !== 'placeholder' ? seat.colLabel : '' }}</div>
                       <!-- Libellé de rangée DROITE — dans le flux également -->
                       <div v-if="!row.isGroup && (row.seatSize || 22) >= 12"
                         class="shrink-0 flex items-center justify-start font-bold leading-none select-none"
