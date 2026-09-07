@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { adminApi } from '../services/adminApi.js';
+import { workspaceReady } from '../services/workspace.js';
 import PlanPreview from '../components/PlanPreview.vue';
 
 const router  = useRouter();
@@ -110,7 +111,7 @@ async function saveEdit() {
   finally { saving.value = false; }
 }
 
-onMounted(load);
+onMounted(async () => { await workspaceReady; await load(); });
 </script>
 
 <template>
