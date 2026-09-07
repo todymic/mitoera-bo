@@ -3462,7 +3462,7 @@ async function saveAll(opts = {}) {
                        superposaient. Les libellés de rangée, eux, restent dans le flux. -->
                   <div v-if="!row.isGroup && selected && selected.kind==='seatRow' && selected.id===row.id"
                     class="flex flex-col items-center justify-center gap-0.5 cursor-grab active:cursor-grabbing"
-                    style="width:8px;padding:2px 0;pointer-events:auto;position:absolute;right:100%;margin-right:4px;top:50%;transform:translateY(-50%);"
+                    style="width:8px;padding:2px 0;pointer-events:auto;position:absolute;left:0;top:50%;transform:translateY(-50%);z-index:2;"
                     :title="'Glisser pour déplacer la rangée ' + rowLabel"
                     @pointerdown.stop="startRowReorder($event, row, dPos, rIdx)"
                   >
@@ -3477,7 +3477,9 @@ async function saveAll(opts = {}) {
                       width: '16px',
                       fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
                       color: catById(row.categoryId).color,
-                      opacity: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx ? 1 : 0.6,
+                      opacity: selected && selected.kind==='seatRow' && selected.id===row.id
+                        ? 0
+                        : selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx ? 1 : 0.6,
                     }">{{ rowLabel }}</div>
                   <!-- Placeholders décalage horizontal (colOffset) -->
                   <div
