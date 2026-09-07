@@ -94,6 +94,7 @@ function onKeyDown(ev) {
     if (activeTool.value)            { activeTool.value = null; ev.preventDefault(); return; }
     if (marqueeMode.value)           { marqueeMode.value = false; ev.preventDefault(); return; }
     if (selectedObjects.size)        { clearObjectSelection(); ev.preventDefault(); return; }
+    if (selected.value)              { deselect(); ev.preventDefault(); return; }
     return;
   }
   if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
@@ -3125,6 +3126,17 @@ async function saveAll(opts = {}) {
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
           </svg>
           Cliquez sur le plan pour placer · Échap pour annuler
+        </div>
+
+        <!-- Mode d'emploi de la rangée sélectionnée : depuis la suppression de la
+             poignée, rien n'indiquait plus qu'elle se glisse. -->
+        <div v-if="!activeTool && !marqueeMode && selected && selected.kind === 'seatRowRow'"
+          class="absolute top-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none
+          bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2">
+          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
+          </svg>
+          Glissez la rangée pour la déplacer · haut/bas pour la réordonner, gauche/droite pour la décaler · Échap pour désélectionner
         </div>
 
         <div ref="canvasRef" class="absolute bg-white shadow-xl"
