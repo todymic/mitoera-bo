@@ -3094,7 +3094,7 @@ async function saveAll(opts = {}) {
 
       <div v-else ref="scrollerRef"
         class="overflow-hidden rounded-xl flex-1 min-h-0 bg-gray-400 relative"
-        :class="activeTool || marqueeMode ? 'cursor-crosshair' : pan.active ? 'cursor-grabbing' : 'cursor-grab'"
+        :class="activeTool || marqueeMode ? 'cursor-crosshair' : 'cursor-move'"
         style="touch-action: none;"
         @wheel.prevent="onWheel"
         @pointerdown="startPan($event); showInfoTooltip = false; showCatPanel = false"
@@ -3349,7 +3349,7 @@ async function saveAll(opts = {}) {
                   </template>
                   <!-- Table circle (cliquable pour sélectionner la table) -->
                   <div
-                    class="absolute rounded-full flex items-center justify-center cursor-pointer"
+                    class="absolute rounded-full flex items-center justify-center cursor-move"
                     style="pointer-events: auto;"
                     :style="{
                       width: (ts.tableSize || 30) + 'px', height: (ts.tableSize || 30) + 'px',
@@ -3375,7 +3375,7 @@ async function saveAll(opts = {}) {
                   <!-- Placeholder table supprimée — clic pour restaurer -->
                   <template v-else>
                     <div
-                      class="absolute rounded-full flex items-center justify-center cursor-pointer"
+                      class="absolute rounded-full flex items-center justify-center cursor-move"
                       style="pointer-events: auto;"
                       :style="{
                         width: (ts.tableSize || 30) + 'px', height: (ts.tableSize || 30) + 'px',
@@ -3454,7 +3454,7 @@ async function saveAll(opts = {}) {
                       ? catById(row.categoryId).color + '22' : 'transparent',
                     borderRadius: '4px',
                     cursor: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx
-                      ? (rowReorder.active ? 'grabbing' : 'grab') : undefined,
+                      ? 'move' : undefined,
                     opacity: rowReorder.active && rowReorder.seatRowId===row.id && rowReorder.displayPos===dPos ? 0.35 : 1,
                     outline: rowReorder.active && rowReorder.seatRowId===row.id && rowReorder.targetPos===dPos && rowReorder.displayPos!==dPos
                       ? '2px dashed ' + catById(row.categoryId).color : 'none',
@@ -3472,7 +3472,7 @@ async function saveAll(opts = {}) {
                       width: '16px',
                       pointerEvents: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx ? 'auto' : 'none',
                       cursor: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx
-                        ? (rowReorder.active ? 'grabbing' : 'grab') : undefined,
+                        ? 'move' : undefined,
                       fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
                       color: catById(row.categoryId).color,
                       opacity: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx ? 1 : 0.6,
@@ -3491,7 +3491,7 @@ async function saveAll(opts = {}) {
                   <div
                     v-for="seat in rowSeats" :key="seat.key"
                     class="flex items-center justify-center text-white font-semibold leading-none"
-                    :class="seat.status === 'deleted' ? '' : 'cursor-pointer'"
+                    :class="seat.status === 'deleted' ? '' : 'cursor-move'"
                     :style="{
                       height: (row.seatSize || 22) + 'px',
                       minWidth: row.shape === 'rounded' ? ((row.seatSize || 22) * 1.5) + 'px' : (row.seatSize || 22) + 'px',
@@ -3517,7 +3517,7 @@ async function saveAll(opts = {}) {
                       width: '16px',
                       pointerEvents: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx ? 'auto' : 'none',
                       cursor: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx
-                        ? (rowReorder.active ? 'grabbing' : 'grab') : undefined,
+                        ? 'move' : undefined,
                       fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
                       color: catById(row.categoryId).color,
                       opacity: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx ? 1 : 0.6,
