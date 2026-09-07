@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { adminApi } from '../services/adminApi.js';
-import { workspaceReady } from '../services/workspace.js';
+import { workspace } from '../services/workspace.js';
 import PlanPreview from '../components/PlanPreview.vue';
 
 const router  = useRouter();
@@ -111,7 +111,8 @@ async function saveEdit() {
   finally { saving.value = false; }
 }
 
-onMounted(async () => { await workspaceReady; await load(); });
+// Recharge dès que le workspace actif change (switch de mode ou de workspace)
+watch(workspace, (w) => { if (w) load(); }, { immediate: true });
 </script>
 
 <template>

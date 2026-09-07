@@ -1,8 +1,8 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { adminApi } from '../services/adminApi.js';
-import { workspaceReady } from '../services/workspace.js';
+import { workspace } from '../services/workspace.js';
 import PlanPreview from '../components/PlanPreview.vue';
 
 const router = useRouter();
@@ -78,7 +78,8 @@ async function saveName(plan) {
   await loadPlans();
 }
 
-onMounted(async () => { await workspaceReady; await loadPlans(); });
+// Recharge dès que le workspace actif change (switch de mode ou de workspace)
+watch(workspace, (w) => { if (w) loadPlans(); }, { immediate: true });
 </script>
 
 <template>
