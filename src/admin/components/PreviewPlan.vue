@@ -287,12 +287,24 @@ function zoomIntoSection(ev) {
   _animRaf = requestAnimationFrame(step);
 }
 
-onMounted(() => { nextTick(fitToView); });
+let _fitPending = false;
+function scheduleFitToView() {
+  if (_fitPending) return;
+  _fitPending = true;
+  nextTick(() => { _fitPending = false; fitToView(); });
+}
+
+onMounted(scheduleFitToView);
 watch(zoom, () => nextTick(updateViewport));
 watch(
-  [() => props.zones, () => props.seatRows, () => props.freeZones, () => props.tableZones, () => props.tableSections],
-  () => { nextTick(fitToView); },
-  { once: true },
+  [
+    () => props.zones.length,
+    () => props.seatRows.length,
+    () => props.freeZones.length,
+    () => props.tableZones.length,
+    () => props.tableSections.length,
+  ],
+  scheduleFitToView,
 );
 </script>
 
@@ -430,7 +442,7 @@ watch(
                         class="shrink-0 flex items-center justify-end font-bold leading-none select-none"
                         :style="{
                           width: '16px', opacity: 0.6,
-                          fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
+                          fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.40)) + 'px',
                           color: catById(row.categoryId).color,
                         }">{{ rowGroup.rowLabel }}</div>
                       <div
@@ -445,6 +457,7 @@ watch(
                           minWidth: row.shape === 'rounded' ? ((row.seatSize || 22) * 1.5) + 'px' : (row.seatSize || 22) + 'px',
                           padding: row.shape === 'rounded' ? '0 6px' : '0',
                           borderRadius: row.shape === 'round' ? '50%' : row.shape === 'rounded' ? '10px' : '4px',
+                          fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.40)) + 'px',
                           visibility: (seat.status === 'deleted' || seat.status === 'placeholder') ? 'hidden' : 'visible',
                           color: seat.status === 'disabled' ? '#9ca3af' : '#fff',
                           background: seat.status === 'disabled' ? '#eef0f2' : (seat.categoryId ? catById(seat.categoryId).color : 'transparent'),
@@ -458,7 +471,7 @@ watch(
                         class="shrink-0 flex items-center justify-start font-bold leading-none select-none"
                         :style="{
                           width: '16px', opacity: 0.6,
-                          fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
+                          fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.40)) + 'px',
                           color: catById(row.categoryId).color,
                         }">{{ rowGroup.rowLabel }}</div>
                     </div>
