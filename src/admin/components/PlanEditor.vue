@@ -2,6 +2,7 @@
 import { ref, reactive, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { adminApi } from '../services/adminApi';
 import { computeSeatLabel, computeAxisLabel, firstAxisLabel, ROW_FORMATS, COL_FORMATS, DIRECTIONS } from '../../services/seatLabel';
+import { seatRowKeys } from '../../services/seatPlan.js';
 import { FREE_ZONE_ICONS, FREE_ZONE_PATTERNS, iconById, patternStyle } from '../../services/icons';
 import PreviewPlan from './PreviewPlan.vue';
 import { activePlanId, activePlanDirty, activePlanStatus } from '../services/activePlan.js';
@@ -946,25 +947,6 @@ function rowStartAt(row, dataR) {
   const ov = (row.rowOverrides || {})[dataR] || {};
   return ov.colStartAt != null ? ov.colStartAt : 0;
 }
-// Clés de sièges produites par un bloc — mêmes formules que seatGrid()
-function seatRowKeys(row) {
-  const section = row.section || row.label || row.id;
-  const disabled = row.disabledSeats || [];
-  const deleted  = row.deletedSeats  || [];
-  const keys = [];
-  for (let r = 0; r < (row.rows || 1); r++) {
-    const label = rowLabelAt(row, r);
-    const cols  = rowColsAt(row, r);
-    const start = rowStartAt(row, r);
-    for (let c = 0; c < cols; c++) {
-      const pk = `${r}-${c}`;
-      if (disabled.includes(pk) || deleted.includes(pk)) continue;
-      keys.push(`${section}-${label}-${computeAxisLabel(c, cols, row.colFormat, row.colDirection, start)}`);
-    }
-  }
-  return keys;
-}
-
 // Une section peut contenir plusieurs blocs : le libellé repris à la rangée
 // d'en face peut donc entrer en collision avec un AUTRE bloc de la section.
 // On décale la numérotation du groupe jusqu'à ce que ses clés soient libres.

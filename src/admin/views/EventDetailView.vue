@@ -5,6 +5,7 @@ import { adminApi } from '../services/adminApi.js';
 import { apiMode } from '../services/auth.js';
 
 import { computeAxisLabel } from '../../services/seatLabel.js';
+import { seatRowKeys } from '../../services/seatPlan.js';
 import EventPlanView from '../components/EventPlanView.vue';
 
 const route  = useRoute();
@@ -116,26 +117,10 @@ function buildSeats(chartObjects) {
   for (const obj of chartObjects) {
     const type = obj._type;
     if (type === 'seatRow') {
-      const section = obj.section || obj.label || obj.id || 'S';
-      const rows = obj.rows || 1, cols = obj.cols || 1;
-      const disabled = obj.disabledSeats || [];
-      const deleted  = obj.deletedSeats  || [];
-      const rowOver  = obj.rowOverrides  || {};
-      for (let r = 0; r < rows; r++) {
-        // Réglages par rangée : mêmes formules que EventPlanView et EventService,
-        // sinon le total de places et la sélection portent sur de mauvaises clés.
-        const ov         = rowOver[r] || {};
-        const rowCols    = ov.cols       != null ? ov.cols       : cols;
-        const colStartAt = ov.colStartAt != null ? ov.colStartAt : 0;
-        const rowLabel   = ov.label      != null && ov.label !== ''
-          ? String(ov.label)
-          : computeAxisLabel(r, rows, obj.rowFormat || 'A-Z', obj.rowDirection || 'normal');
-        for (let c = 0; c < rowCols; c++) {
-          const posKey = `${r}-${c}`;
-          if (disabled.includes(posKey) || deleted.includes(posKey)) continue;
-          const colLabel = computeAxisLabel(c, rowCols, obj.colFormat || '1-9', obj.colDirection || 'normal', colStartAt);
-          all.push({ key: `${section}-${rowLabel}-${colLabel}`, section, categoryId: obj.categoryId });
-        }
+      // Même fonction que l'éditeur, la vue plan et EventService : les clés
+      // comptées ici doivent être exactement celles vendues en base.
+      for (const key of seatRowKeys(obj)) {
+        all.push({ key, section: obj.section || obj.label || obj.id || 'S', categoryId: obj.categoryId });
       }
     } else if (type === 'tableSection') {
       const section = obj.section || obj.label || obj.id || 'TS';
