@@ -3445,41 +3445,37 @@ async function saveAll(opts = {}) {
               <div :class="itemShowBadge(row) ? 'lod-blur' : ''" style="display:flex;flex-direction:column;gap:6px;">
                 <div v-for="{ r: rIdx, displayPos: dPos, rowLabel, colOffset, seats: rowSeats } in seatGridByRow(row)" :key="rIdx"
                   style="display:flex;align-items:center;gap:6px;position:relative;"
+                  :title="selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx
+                    ? 'Glisser pour déplacer la rangée ' + rowLabel : null"
+                  @pointerdown="selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx
+                    ? startRowReorder($event, row, dPos, rIdx) : null"
                   :style="{
                     background: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx
                       ? catById(row.categoryId).color + '22' : 'transparent',
                     borderRadius: '4px',
+                    cursor: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx
+                      ? (rowReorder.active ? 'grabbing' : 'grab') : undefined,
                     opacity: rowReorder.active && rowReorder.seatRowId===row.id && rowReorder.displayPos===dPos ? 0.35 : 1,
                     outline: rowReorder.active && rowReorder.seatRowId===row.id && rowReorder.targetPos===dPos && rowReorder.displayPos!==dPos
                       ? '2px dashed ' + catById(row.categoryId).color : 'none',
                     outlineOffset: '1px',
                   }"
                 >
-                  <!-- Poignée réordonnancement (visible seulement quand le bloc est sélectionné).
-                       Hors du flux : dans le flux, elle apparaissait à la sélection et
-                       poussait tous les sièges du bloc de 14px, alors que les groupes
-                       rattachés — objets distincts — restaient en place et se
-                       superposaient. Les libellés de rangée, eux, restent dans le flux. -->
-                  <div v-if="!row.isGroup && selected && selected.kind==='seatRow' && selected.id===row.id"
-                    class="flex flex-col items-center justify-center gap-0.5 cursor-grab active:cursor-grabbing"
-                    style="width:8px;padding:2px 0;pointer-events:auto;position:absolute;left:0;top:50%;transform:translateY(-50%);z-index:2;"
-                    :title="'Glisser pour déplacer la rangée ' + rowLabel"
-                    @pointerdown.stop="startRowReorder($event, row, dPos, rIdx)"
-                  >
-                    <span style="width:6px;height:1.5px;border-radius:1px;background:currentColor;display:block;opacity:0.4;"></span>
-                    <span style="width:6px;height:1.5px;border-radius:1px;background:currentColor;display:block;opacity:0.4;"></span>
-                    <span style="width:6px;height:1.5px;border-radius:1px;background:currentColor;display:block;opacity:0.4;"></span>
-                  </div>
+                  <!-- Plus de poignée : c'est la rangée sélectionnée qui se glisse.
+                       Les trois traits prenaient de la place à gauche et, tant
+                       qu'ils étaient dans le flux, décalaient les sièges du bloc
+                       à chaque sélection. -->
                   <!-- Label rangée GAUCHE — masqué sur un groupe, le bloc l'affiche déjà -->
                   <div v-if="!row.isGroup && (row.seatSize || 22) >= 12"
-                    class="shrink-0 flex items-center justify-end font-bold leading-none pointer-events-none select-none"
+                    class="shrink-0 flex items-center justify-end font-bold leading-none select-none"
                     :style="{
                       width: '16px',
+                      pointerEvents: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx ? 'auto' : 'none',
+                      cursor: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx
+                        ? (rowReorder.active ? 'grabbing' : 'grab') : undefined,
                       fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
                       color: catById(row.categoryId).color,
-                      opacity: selected && selected.kind==='seatRow' && selected.id===row.id
-                        ? 0
-                        : selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx ? 1 : 0.6,
+                      opacity: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx ? 1 : 0.6,
                     }">{{ rowLabel }}</div>
                   <!-- Placeholders décalage horizontal (colOffset) -->
                   <div
@@ -3516,9 +3512,12 @@ async function saveAll(opts = {}) {
                   >{{ (row.seatSize || 22) >= 14 && seat.status !== 'deleted' ? seat.colLabel : '' }}</div>
                   <!-- Label rangée DROITE — masqué sur un groupe -->
                   <div v-if="!row.isGroup && (row.seatSize || 22) >= 12"
-                    class="shrink-0 flex items-center justify-start font-bold leading-none pointer-events-none select-none"
+                    class="shrink-0 flex items-center justify-start font-bold leading-none select-none"
                     :style="{
                       width: '16px',
+                      pointerEvents: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx ? 'auto' : 'none',
+                      cursor: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx
+                        ? (rowReorder.active ? 'grabbing' : 'grab') : undefined,
                       fontSize: Math.max(7, Math.floor((row.seatSize || 22) * 0.45)) + 'px',
                       color: catById(row.categoryId).color,
                       opacity: selected && selected.kind==='seatRowRow' && selected.rowId===row.id && selected.r===rIdx ? 1 : 0.6,
