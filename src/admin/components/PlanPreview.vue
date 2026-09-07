@@ -8,45 +8,61 @@ const props = defineProps({
   height:   { type: Number, default: 120 },
 });
 
-function cat(categoryId) {
-  const color = props.colorMap[categoryId] || '#9ca3af';
-  return { color };
+// ── couleur par catégorie ──────────────────────────────────────────────────
+function catColor(categoryId) {
+  return props.colorMap[categoryId] || '#9ca3af';
 }
 
-// ---- Geometry ----
-function tableZoneSize(t) { return (t.tableSize || 30) + 2 * (t.seatSize || 15) + 16; }
+// ── helpers géométriques (mêmes formules que l'éditeur) ───────────────────
 const TS_PAD = 4;
 function tsUnit(ts) { return (ts.tableSize || 30) + 2 * (ts.seatSize || 15) + 16; }
 function tsW(ts) {
-  const u = tsUnit(ts); const c = ts.tableCount || 3; const sp = ts.tableSpacing ?? 2;
+  const u = tsUnit(ts), c = ts.tableCount || 3, sp = ts.tableSpacing ?? 2;
   return c * u + (c - 1) * sp + 2 * TS_PAD;
 }
 function tsH(ts) {
-  const u = tsUnit(ts); const r = ts.tableRows || 1; const sp = ts.tableSpacing ?? 2;
+  const u = tsUnit(ts), r = ts.tableRows || 1, sp = ts.tableSpacing ?? 2;
   return r * u + (r - 1) * sp + 2 * TS_PAD;
 }
+function tzSize(t) { return (t.tableSize || 30) + 2 * (t.seatSize || 15) + 16; }
 
-// Categorized objects
+// Dimensions naturelles d'un seatRow (avant rotation)
+// padding p-1.5 = 6px de chaque côté + 14px pour le label
+function rowW(row) {
+  const ss = row.seatSize || 22, gap = row.seatGap ?? 4, cols = row.cols || 1;
+  return 12 + cols * ss + (cols - 1) * gap;
+}
+function rowH(row) {
+  const ss = row.seatSize || 22, gap = row.seatGap ?? 4, rows = row.rows || 1;
+  return 12 + rows * ss + (rows - 1) * gap;
+}
+// Centre de rotation : centre géométrique de l'élément complet (label inclus)
+function rowCx(row) { return (row.left || 0) + rowW(row) / 2; }
+function rowCy(row) { return (row.top  || 0) + 7 + rowH(row) / 2; } // 7 = 14/2
+
+// ── objets par type ───────────────────────────────────────────────────────
 const zones         = computed(() => props.objects.filter(o => o._type === 'zone'));
 const freeZones     = computed(() => props.objects.filter(o => o._type === 'freeZone'));
 const seatRows      = computed(() => props.objects.filter(o => o._type === 'seatRow'));
 const tableZones    = computed(() => props.objects.filter(o => o._type === 'tableZone'));
 const tableSections = computed(() => props.objects.filter(o => o._type === 'tableSection'));
 
-// Compute bounding box of all objects
+// ── bounding box (même logique que l'ancienne version) ────────────────────
 const bbox = computed(() => {
-  let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const o of props.objects) {
     const x = o.left || 0, y = o.top || 0;
     let w = 0, h = 0;
-    if (o._type === 'zone' || o._type === 'freeZone') { w = o.width || 80; h = o.height || 60; }
-    else if (o._type === 'seatRow') {
-      const ss = o.seatSize || 22, gap = o.seatGap ?? 4;
-      w = (o.cols || 1) * (ss + gap); h = (o.rows || 1) * (ss + gap) + 14;
+    if (o._type === 'zone' || o._type === 'freeZone') {
+      w = o.width || 80; h = o.height || 60;
+    } else if (o._type === 'seatRow') {
+      w = rowW(o); h = 14 + rowH(o);
+    } else if (o._type === 'tableZone') {
+      const sz = tzSize(o); w = sz; h = sz;
+    } else if (o._type === 'tableSection') {
+      w = tsW(o); h = tsH(o);
     }
-    else if (o._type === 'tableZone') { const sz = tableZoneSize(o); w = sz; h = sz; }
-    else if (o._type === 'tableSection') { w = tsW(o); h = tsH(o); }
-    minX = Math.min(minX, x); minY = Math.min(minY, y);
+    minX = Math.min(minX, x);     minY = Math.min(minY, y);
     maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
   }
   if (!isFinite(minX)) return { minX: 0, minY: 0, w: 200, h: 150 };
@@ -54,155 +70,253 @@ const bbox = computed(() => {
   return { minX: minX - pad, minY: minY - pad, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2 };
 });
 
-const scale = computed(() => {
-  const sx = props.width  / bbox.value.w;
-  const sy = props.height / bbox.value.h;
-  return Math.min(sx, sy);
-});
+const viewBox = computed(() =>
+  `${bbox.value.minX} ${bbox.value.minY} ${bbox.value.w} ${bbox.value.h}`
+);
 
-const transform = computed(() => {
-  const s = scale.value;
-  return `translate(${-bbox.value.minX * s}px, ${-bbox.value.minY * s}px) scale(${s})`;
-});
-
-// Seat helpers
-function seatColCount(row) { return row.cols || 1; }
-function buildTableSeats(t) {
-  const count = t.seatCount || 6;
-  const disabled = t.disabledSeats || [];
-  const seats = [];
-  for (let i = 0; i < count; i++) {
-    if (!disabled.includes(i)) seats.push({ index: i });
+// ── sièges d'un seatRow ───────────────────────────────────────────────────
+function rowSeats(row) {
+  const disabled = row.disabledSeats || [];
+  const result = [];
+  for (let r = 0; r < (row.rows || 1); r++) {
+    for (let c = 0; c < (row.cols || 1); c++) {
+      result.push({ r, c, on: !disabled.includes(`${r}-${c}`) });
+    }
   }
-  return seats;
+  return result;
 }
-function buildSectionSeats(ts, ti, ri, ci) {
-  const spt = ts.seatsPerTable || 6;
-  const disabled = ts.disabledSeats || [];
-  const seats = [];
-  for (let si = 0; si < spt; si++) {
-    if (!disabled.includes(`${ti}-${si}`)) seats.push({ si, spt });
-  }
-  return seats;
+
+// ── sièges d'une table ronde ──────────────────────────────────────────────
+function tableSeats(t) {
+  const count = t.seatCount || 6, disabled = t.disabledSeats || [];
+  return Array.from({ length: count }, (_, i) => i).filter(i => !disabled.includes(i));
+}
+
+// ── sièges autour d'une table dans une section ────────────────────────────
+function sectionSeats(ts, ti) {
+  const spt = ts.seatsPerTable || 6, disabled = ts.disabledSeats || [];
+  return Array.from({ length: spt }, (_, si) => ({ si, spt }))
+    .filter(({ si }) => !disabled.includes(`${ti}-${si}`));
 }
 </script>
 
 <template>
-  <div class="shrink-0 rounded-lg bg-white border border-gray-100 overflow-hidden relative"
-    :style="{ width: width + 'px', height: height + 'px' }">
+  <svg
+    :width="width" :height="height"
+    :viewBox="viewBox"
+    preserveAspectRatio="xMidYMid meet"
+    xmlns="http://www.w3.org/2000/svg"
+    class="shrink-0 rounded-lg border border-gray-100"
+    style="display:block; background:#fff; overflow:hidden;"
+  >
+    <!-- Plan vide -->
+    <text v-if="!objects.length"
+      :x="bbox.minX + bbox.w / 2" :y="bbox.minY + bbox.h / 2"
+      text-anchor="middle" dominant-baseline="middle"
+      fill="#d1d5db" font-size="14" font-family="system-ui"
+    >Vide</text>
 
-    <div v-if="!objects.length"
-      class="absolute inset-0 flex items-center justify-center text-xs text-gray-300">
-      Vide
-    </div>
+    <!-- ── Zones de places ──────────────────────────────────────────── -->
+    <g v-for="z in zones" :key="z.id">
+      <rect
+        :x="z.left" :y="z.top"
+        :width="z.width || 80" :height="z.height || 60"
+        :fill="catColor(z.categoryId) + '18'"
+        :stroke="catColor(z.categoryId) + '66'"
+        stroke-width="2" rx="12"
+      />
+      <!-- Fond de l'étiquette (pill) -->
+      <rect
+        :x="(z.left || 0) + (z.width || 80) / 2 - ((z.label || '').length * (z.labelFontSize || 12) * 0.33 + 12)"
+        :y="(z.top  || 0) + (z.height || 60) / 2 - (z.labelFontSize || 12) * 0.6"
+        :width="(z.label || '').length * (z.labelFontSize || 12) * 0.66 + 24"
+        :height="(z.labelFontSize || 12) * 1.2 + 8"
+        fill="white" rx="999"
+        :stroke="catColor(z.categoryId) + '33'" stroke-width="1.5"
+      />
+      <text
+        :x="(z.left || 0) + (z.width || 80) / 2"
+        :y="(z.top  || 0) + (z.height || 60) / 2"
+        text-anchor="middle" dominant-baseline="middle"
+        :fill="catColor(z.categoryId)"
+        :font-size="z.labelFontSize || 12"
+        font-weight="bold" font-family="system-ui"
+      >{{ z.label }}</text>
+    </g>
 
-    <!-- Canvas at full scale, clipped by container -->
-    <div class="absolute" style="transform-origin: 0 0; pointer-events: none;"
-      :style="{ transform }">
+    <!-- ── Zones libres ─────────────────────────────────────────────── -->
+    <g v-for="fz in freeZones" :key="fz.id">
+      <rect
+        :x="fz.left" :y="fz.top"
+        :width="fz.width || 80" :height="fz.height || 60"
+        :fill="fz.color"
+        :stroke="(fz.color || '#000') + '40'" stroke-width="1"
+        rx="8"
+      />
+      <!-- Icône -->
+      <text v-if="fz.icon"
+        :x="(fz.left || 0) + (fz.width || 80) / 2"
+        :y="fz.label
+          ? (fz.top || 0) + (fz.height || 60) / 2 - (fz.labelFontSize || 10) / 2 - 2
+          : (fz.top || 0) + (fz.height || 60) / 2"
+        text-anchor="middle" dominant-baseline="middle"
+        :font-size="fz.iconSize || Math.max(12, (fz.height || 60) * 0.32)"
+        font-family="system-ui"
+      >{{ fz.icon }}</text>
+      <!-- Label -->
+      <text
+        :x="(fz.left || 0) + (fz.width || 80) / 2"
+        :y="fz.icon
+          ? (fz.top || 0) + (fz.height || 60) / 2 + (fz.iconSize || Math.max(12, (fz.height || 60) * 0.32)) / 2 + 4
+          : (fz.top || 0) + (fz.height || 60) / 2"
+        text-anchor="middle" dominant-baseline="middle"
+        :fill="fz.textColor || '#000'"
+        :font-size="fz.labelFontSize || 10"
+        font-weight="bold" font-family="system-ui"
+      >{{ fz.label }}</text>
+    </g>
 
-      <!-- Zones -->
-      <div v-for="z in zones" :key="z.id"
-        class="absolute rounded-xl border-2 flex items-center justify-center select-none"
-        :style="{ top: z.top+'px', left: z.left+'px', width: (z.width||80)+'px', height: (z.height||60)+'px',
-          background: cat(z.categoryId).color+'18', borderColor: cat(z.categoryId).color+'66' }">
-        <span class="bg-white rounded-full font-bold px-3 py-1 shadow-sm"
-          :style="{ color: cat(z.categoryId).color, fontSize: (z.labelFontSize||12)+'px', border: `1.5px solid ${cat(z.categoryId).color}33` }">
-          {{ z.label }}
-        </span>
-      </div>
+    <!-- ── Blocs de sièges (seatRow) ────────────────────────────────── -->
+    <g v-for="row in seatRows" :key="row.id"
+      :transform="`rotate(${row.rotation || 0}, ${rowCx(row)}, ${rowCy(row)})`"
+    >
+      <!-- Étiquette de section au-dessus du bloc -->
+      <rect
+        :x="(row.left || 0) + rowW(row) / 2 - ((row.section || '?').length * 5 + 10)"
+        :y="(row.top || 0)"
+        :width="(row.section || '?').length * 10 + 20"
+        height="13"
+        fill="white" rx="999"
+        :stroke="catColor(row.categoryId) + '55'" stroke-width="1"
+      />
+      <text
+        :x="(row.left || 0) + rowW(row) / 2"
+        :y="(row.top || 0) + 6.5"
+        text-anchor="middle" dominant-baseline="middle"
+        :fill="catColor(row.categoryId)"
+        font-size="9" font-weight="bold" font-family="system-ui"
+      >{{ row.section || '?' }}</text>
 
-      <!-- Zones libres -->
-      <div v-for="fz in freeZones" :key="fz.id"
-        class="absolute rounded-lg flex flex-col items-center justify-center text-center gap-0.5 select-none"
-        :style="{ top: fz.top+'px', left: fz.left+'px', width: (fz.width||80)+'px', height: (fz.height||60)+'px',
-          background: fz.color, border: `1px solid ${fz.color}40` }">
-        <span v-if="fz.icon" :style="{ fontSize: (fz.iconSize || Math.max(12,(fz.height||60)*0.32))+'px' }">{{ fz.icon }}</span>
-        <span class="font-bold uppercase tracking-wide leading-tight"
-          :style="{ color: fz.textColor||'#000', fontSize: (fz.labelFontSize||10)+'px' }">{{ fz.label }}</span>
-      </div>
+      <!-- Fond du bloc de sièges -->
+      <rect
+        :x="row.left || 0"
+        :y="(row.top || 0) + 14"
+        :width="rowW(row)"
+        :height="rowH(row)"
+        :fill="catColor(row.categoryId) + '14'"
+        :stroke="catColor(row.categoryId) + '55'"
+        stroke-width="1" rx="6"
+      />
 
-      <!-- Blocs de sièges -->
-      <div v-for="row in seatRows" :key="row.id"
-        class="absolute select-none"
-        :style="{ top: row.top+'px', left: row.left+'px', paddingTop: '14px', transform: `rotate(${row.rotation||0}deg)` }">
-        <div class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white border rounded-full px-3 py-0.5 text-xs font-bold whitespace-nowrap z-10"
-          :style="{ color: cat(row.categoryId).color, borderColor: cat(row.categoryId).color+'55', fontSize: '10px' }">
-          {{ row.section || '?' }}
-        </div>
-        <div class="rounded-lg p-1.5"
-          :style="{ background: cat(row.categoryId).color+'14', border: `1px solid ${cat(row.categoryId).color}55` }">
-          <div class="grid"
-            :style="{ gridTemplateColumns: `repeat(${seatColCount(row)}, ${row.seatSize||22}px)`, gap: (row.seatGap??4)+'px' }">
-            <template v-for="r in (row.rows||1)" :key="r">
-              <template v-for="c in (row.cols||1)" :key="c">
-                <div v-if="!(row.disabledSeats||[]).includes(`${r-1}-${c-1}`)"
-                  class="rounded flex items-center justify-center font-bold"
-                  :style="{ width: (row.seatSize||22)+'px', height: (row.seatSize||22)+'px',
-                    background: cat(row.categoryId).color, color: '#fff',
-                    fontSize: (row.seatLabelFontSize||9)+'px', borderRadius: row.shape==='rounded' ? '50%' : '3px' }">
-                </div>
-                <div v-else :style="{ width: (row.seatSize||22)+'px', height: (row.seatSize||22)+'px' }" />
-              </template>
-            </template>
-          </div>
-        </div>
-      </div>
+      <!-- Sièges -->
+      <template v-for="seat in rowSeats(row)" :key="`${seat.r}-${seat.c}`">
+        <template v-if="seat.on">
+          <!-- Siège actif -->
+          <circle v-if="row.shape === 'rounded'"
+            :cx="(row.left || 0) + 6 + seat.c * ((row.seatSize || 22) + (row.seatGap ?? 4)) + (row.seatSize || 22) / 2"
+            :cy="(row.top || 0) + 14 + 6 + seat.r * ((row.seatSize || 22) + (row.seatGap ?? 4)) + (row.seatSize || 22) / 2"
+            :r="(row.seatSize || 22) / 2"
+            :fill="catColor(row.categoryId)"
+          />
+          <rect v-else
+            :x="(row.left || 0) + 6 + seat.c * ((row.seatSize || 22) + (row.seatGap ?? 4))"
+            :y="(row.top || 0) + 14 + 6 + seat.r * ((row.seatSize || 22) + (row.seatGap ?? 4))"
+            :width="row.seatSize || 22" :height="row.seatSize || 22"
+            :fill="catColor(row.categoryId)"
+            rx="3"
+          />
+        </template>
+        <template v-else>
+          <!-- Siège désactivé (gris transparent pour garder l'espace) -->
+          <circle v-if="row.shape === 'rounded'"
+            :cx="(row.left || 0) + 6 + seat.c * ((row.seatSize || 22) + (row.seatGap ?? 4)) + (row.seatSize || 22) / 2"
+            :cy="(row.top || 0) + 14 + 6 + seat.r * ((row.seatSize || 22) + (row.seatGap ?? 4)) + (row.seatSize || 22) / 2"
+            :r="(row.seatSize || 22) / 2"
+            fill="#e5e7eb"
+          />
+          <rect v-else
+            :x="(row.left || 0) + 6 + seat.c * ((row.seatSize || 22) + (row.seatGap ?? 4))"
+            :y="(row.top || 0) + 14 + 6 + seat.r * ((row.seatSize || 22) + (row.seatGap ?? 4))"
+            :width="row.seatSize || 22" :height="row.seatSize || 22"
+            fill="#e5e7eb" rx="3"
+          />
+        </template>
+      </template>
+    </g>
 
-      <!-- Tables rondes -->
-      <div v-for="t in tableZones" :key="t.id"
-        class="absolute select-none"
-        :style="{ top: t.top+'px', left: t.left+'px', width: tableZoneSize(t)+'px', height: tableZoneSize(t)+'px', transform: `rotate(${t.rotation||0}deg)` }">
-        <div v-for="seat in buildTableSeats(t)" :key="seat.index"
-          class="absolute flex items-center justify-center rounded-full font-bold"
-          :style="{
-            width: (t.seatSize||15)+'px', height: (t.seatSize||15)+'px',
-            background: cat(t.categoryId).color, color: '#fff',
-            fontSize: (t.seatLabelFontSize||9)+'px',
-            left: (tableZoneSize(t)/2 + ((t.tableSize||30)/2+(t.seatSize||15)/2)*Math.cos((2*Math.PI*seat.index)/(t.seatCount||6)-Math.PI/2)-(t.seatSize||15)/2)+'px',
-            top:  (tableZoneSize(t)/2 + ((t.tableSize||30)/2+(t.seatSize||15)/2)*Math.sin((2*Math.PI*seat.index)/(t.seatCount||6)-Math.PI/2)-(t.seatSize||15)/2)+'px',
-          }" />
-        <div class="absolute rounded-full flex items-center justify-center"
-          :style="{ width:(t.tableSize||30)+'px', height:(t.tableSize||30)+'px',
-            left:(tableZoneSize(t)-(t.tableSize||30))/2+'px', top:(tableZoneSize(t)-(t.tableSize||30))/2+'px',
-            background: cat(t.categoryId).color+'22', border:`2px solid ${cat(t.categoryId).color}88` }">
-          <span class="font-bold" :style="{ color: cat(t.categoryId).color, fontSize:(t.tableLabelFontSize||11)+'px' }">{{ t.section }}</span>
-        </div>
-      </div>
+    <!-- ── Tables rondes (tableZone) ────────────────────────────────── -->
+    <g v-for="t in tableZones" :key="t.id"
+      :transform="`translate(${t.left || 0}, ${t.top || 0}) rotate(${t.rotation || 0}, ${tzSize(t) / 2}, ${tzSize(t) / 2})`"
+    >
+      <!-- Sièges autour de la table -->
+      <circle
+        v-for="si in tableSeats(t)" :key="si"
+        :cx="tzSize(t) / 2 + ((t.tableSize || 30) / 2 + (t.seatSize || 15) / 2) * Math.cos(2 * Math.PI * si / (t.seatCount || 6) - Math.PI / 2)"
+        :cy="tzSize(t) / 2 + ((t.tableSize || 30) / 2 + (t.seatSize || 15) / 2) * Math.sin(2 * Math.PI * si / (t.seatCount || 6) - Math.PI / 2)"
+        :r="(t.seatSize || 15) / 2"
+        :fill="catColor(t.categoryId)"
+      />
+      <!-- Table (cercle central) -->
+      <circle
+        :cx="tzSize(t) / 2" :cy="tzSize(t) / 2"
+        :r="(t.tableSize || 30) / 2"
+        :fill="catColor(t.categoryId) + '22'"
+        :stroke="catColor(t.categoryId) + '88'" stroke-width="2"
+      />
+      <text
+        :x="tzSize(t) / 2" :y="tzSize(t) / 2"
+        text-anchor="middle" dominant-baseline="middle"
+        :fill="catColor(t.categoryId)"
+        :font-size="t.tableLabelFontSize || 11"
+        font-weight="bold" font-family="system-ui"
+      >{{ t.section }}</text>
+    </g>
 
-      <!-- Sections de tables -->
-      <div v-for="ts in tableSections" :key="ts.id"
-        class="absolute select-none rounded-lg"
-        :style="{ top: ts.top+'px', left: ts.left+'px', width: tsW(ts)+'px', height: tsH(ts)+'px',
-          background: cat(ts.categoryId).color+'14', border: `1px solid ${cat(ts.categoryId).color}55` }">
-        <template v-for="ri in (ts.tableRows||1)" :key="ri">
-          <template v-for="ci in (ts.tableCount||3)" :key="ci">
-            <template v-if="!(ts.deletedTables||[]).includes((ri-1)*(ts.tableCount||3)+(ci-1))">
-              <!-- Seats around table -->
-              <div v-for="seat in buildSectionSeats(ts, (ri-1)*(ts.tableCount||3)+(ci-1), ri, ci)" :key="seat.si"
-                class="absolute rounded-full"
-                :style="{
-                  width: (ts.seatSize||15)+'px', height: (ts.seatSize||15)+'px',
-                  background: cat(ts.categoryId).color,
-                  left: (TS_PAD + (ci-1)*(tsUnit(ts)+(ts.tableSpacing??2)) + tsUnit(ts)/2 + ((ts.tableSize||30)/2+(ts.seatSize||15)/2)*Math.cos((2*Math.PI*seat.si)/seat.spt - Math.PI/2) - (ts.seatSize||15)/2)+'px',
-                  top:  (TS_PAD + (ri-1)*(tsUnit(ts)+(ts.tableSpacing??2)) + tsUnit(ts)/2 + ((ts.tableSize||30)/2+(ts.seatSize||15)/2)*Math.sin((2*Math.PI*seat.si)/seat.spt - Math.PI/2) - (ts.seatSize||15)/2)+'px',
-                }" />
-              <!-- Table circle -->
-              <div class="absolute rounded-full flex items-center justify-center"
-                :style="{
-                  width: (ts.tableSize||30)+'px', height: (ts.tableSize||30)+'px',
-                  left: (TS_PAD + (ci-1)*(tsUnit(ts)+(ts.tableSpacing??2)) + (tsUnit(ts)-(ts.tableSize||30))/2)+'px',
-                  top:  (TS_PAD + (ri-1)*(tsUnit(ts)+(ts.tableSpacing??2)) + (tsUnit(ts)-(ts.tableSize||30))/2)+'px',
-                  background: cat(ts.categoryId).color+'22', border: `2px solid ${cat(ts.categoryId).color}88`,
-                }">
-                <span class="font-bold" :style="{ color: cat(ts.categoryId).color, fontSize:(ts.tableLabelFontSize||10)+'px' }">
-                  T{{ (ri-1)*(ts.tableCount||3)+ci }}
-                </span>
-              </div>
-            </template>
+    <!-- ── Sections de tables (tableSection) ────────────────────────── -->
+    <g v-for="ts in tableSections" :key="ts.id">
+      <!-- Fond de section -->
+      <rect
+        :x="ts.left || 0" :y="ts.top || 0"
+        :width="tsW(ts)" :height="tsH(ts)"
+        :fill="catColor(ts.categoryId) + '14'"
+        :stroke="catColor(ts.categoryId) + '55'"
+        stroke-width="1" rx="6"
+      />
+      <template v-for="ri in (ts.tableRows || 1)" :key="ri">
+        <template v-for="ci in (ts.tableCount || 3)" :key="ci">
+          <template v-if="!(ts.deletedTables || []).includes((ri - 1) * (ts.tableCount || 3) + (ci - 1))">
+            <!-- Centre de cette table dans la grille -->
+            <!-- cx_table = left + TS_PAD + (ci-1)*(tsUnit+spacing) + tsUnit/2 -->
+            <!-- cy_table = top  + TS_PAD + (ri-1)*(tsUnit+spacing) + tsUnit/2 -->
+            <circle
+              v-for="seat in sectionSeats(ts, (ri - 1) * (ts.tableCount || 3) + (ci - 1))"
+              :key="seat.si"
+              :cx="(ts.left || 0) + TS_PAD + (ci - 1) * (tsUnit(ts) + (ts.tableSpacing ?? 2)) + tsUnit(ts) / 2
+                + ((ts.tableSize || 30) / 2 + (ts.seatSize || 15) / 2) * Math.cos(2 * Math.PI * seat.si / seat.spt - Math.PI / 2)"
+              :cy="(ts.top  || 0) + TS_PAD + (ri - 1) * (tsUnit(ts) + (ts.tableSpacing ?? 2)) + tsUnit(ts) / 2
+                + ((ts.tableSize || 30) / 2 + (ts.seatSize || 15) / 2) * Math.sin(2 * Math.PI * seat.si / seat.spt - Math.PI / 2)"
+              :r="(ts.seatSize || 15) / 2"
+              :fill="catColor(ts.categoryId)"
+            />
+            <!-- Table -->
+            <circle
+              :cx="(ts.left || 0) + TS_PAD + (ci - 1) * (tsUnit(ts) + (ts.tableSpacing ?? 2)) + tsUnit(ts) / 2"
+              :cy="(ts.top  || 0) + TS_PAD + (ri - 1) * (tsUnit(ts) + (ts.tableSpacing ?? 2)) + tsUnit(ts) / 2"
+              :r="(ts.tableSize || 30) / 2"
+              :fill="catColor(ts.categoryId) + '22'"
+              :stroke="catColor(ts.categoryId) + '88'" stroke-width="2"
+            />
+            <text
+              :x="(ts.left || 0) + TS_PAD + (ci - 1) * (tsUnit(ts) + (ts.tableSpacing ?? 2)) + tsUnit(ts) / 2"
+              :y="(ts.top  || 0) + TS_PAD + (ri - 1) * (tsUnit(ts) + (ts.tableSpacing ?? 2)) + tsUnit(ts) / 2"
+              text-anchor="middle" dominant-baseline="middle"
+              :fill="catColor(ts.categoryId)"
+              :font-size="ts.tableLabelFontSize || 10"
+              font-weight="bold" font-family="system-ui"
+            >T{{ (ri - 1) * (ts.tableCount || 3) + ci }}</text>
           </template>
         </template>
-      </div>
-
-    </div>
-  </div>
+      </template>
+    </g>
+  </svg>
 </template>
