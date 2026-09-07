@@ -983,13 +983,20 @@ function setRowOver(row, dataR, patch) {
 // Cale le groupe sur la rangée du bloc la plus proche et lui en donne l'identité :
 // même hauteur, mêmes sièges, même catégorie, même libellé de rangée, et une
 // numérotation de colonnes qui prolonge celle du bloc du bon côté.
-function snapGroupToRow(group, target) {
+// Position d'affichage de la rangée du bloc la plus proche du groupe
+function nearestRowPos(group, target) {
   const order = displayOrder(target);
   let bestPos = 0, bestDist = Infinity;
   for (let p = 0; p < order.length; p++) {
     const d = Math.abs((target.top || 0) + rowTopOffset(target, p) - ((group.top || 0) + cardInsetOf(group)));
     if (d < bestDist) { bestDist = d; bestPos = p; }
   }
+  return bestPos;
+}
+
+function snapGroupToRow(group, target) {
+  const order = displayOrder(target);
+  const bestPos = nearestRowPos(group, target);
 
   // Apparence reprise du bloc (avant le calcul de position : la hauteur en dépend)
   group.seatSize   = target.seatSize || 22;
@@ -1021,6 +1028,17 @@ function snapGroupToRow(group, target) {
     group.shiftedHost = null;
   }
 
+  // Rendre au bloc les sièges qu'un rattachement précédent lui avait retirés
+  if (group.coveredSeats?.posKeys?.length) {
+    const prev = seatRows.value.find((r) => r.id === group.coveredSeats.rowId);
+    if (prev) {
+      const keep = new Set(group.coveredSeats.posKeys);
+      prev.deletedSeats = (prev.deletedSeats || []).filter((k) => !keep.has(k));
+      if (!touched.includes(prev)) touched.push(prev);
+    }
+    group.coveredSeats = null;
+  }
+
   // Rangée d'accroche : c'est elle que le groupe suivra si le bloc est modifié
   group.hostRowIndex = order[Math.min(bestPos, order.length - 1)];
 
@@ -1041,8 +1059,19 @@ function snapGroupToRow(group, target) {
     labels.push(label);
   }
 
+  // Le groupe prend la place des sièges qu'il recouvre : sans ça ils restent
+  // sous lui, invisibles mais toujours vendables, et débordent en liseré autour.
+  const dataR0 = order[Math.min(bestPos, order.length - 1)];
+  const covered = coveredTargetSeats(group, target, dataR0);
+  if (covered.length) {
+    const del = new Set(target.deletedSeats || []);
+    covered.forEach((k) => del.add(k));
+    target.deletedSeats = [...del];
+    group.coveredSeats = { rowId: target.id, dataR: dataR0, posKeys: covered };
+  }
+
   resolveGroupKeyCollisions(group);
-  return { labels, onLeft, target, touched };
+  return { labels, onLeft, target, touched, covered };
 }
 
 // Le groupe doit rester soudé à sa rangée : modifier la taille des sièges, le
@@ -1077,11 +1106,33 @@ async function attachGroupToSection(group, sectionName, target = null) {
 
   let labels = [];
   if (block) {
+    // Refuser plutôt que de faire disparaître des places déjà vendues
+    const targetRow  = displayOrder(block)[nearestRowPos(group, block)] ?? 0;
+    const wouldCover = coveredTargetSeats(group, block, targetRow);
+    const section = block.section || block.label || block.id;
+    const blocked = await checkBookedSeatKeys(
+      wouldCover.map((pk) => {
+        const [r, c] = pk.split('-').map(Number);
+        return `${section}-${rowLabelAt(block, r)}-`
+          + computeAxisLabel(c, rowColsAt(block, r), block.colFormat, block.colDirection, rowStartAt(block, r));
+      }),
+    );
+    if (blocked.length > 0) {
+      deleteBlockMessage.value = `Le groupe recouvrirait ${blocked.length} siège(s) déjà vendu(s) ou en attente `
+        + `(${blocked.map((s) => s.seatKey).join(', ')}). Libérez-les avant de le rattacher ici.`;
+      showProps.value = true;
+      showToast('Rattachement refusé — sièges vendus sous le groupe', 'error', 5000);
+      return;
+    }
+
     const res = snapGroupToRow(group, block);
     labels = res.labels;
     // La cible ET l'ancienne rangée hôte peuvent avoir changé
     for (const b of res.touched) {
-      await adminApi.updateSeatRow(b.id, { rowOverrides: b.rowOverrides }, props.venueId);
+      await adminApi.updateSeatRow(b.id, {
+        rowOverrides: b.rowOverrides,
+        deletedSeats: b.deletedSeats || [],
+      }, props.venueId);
     }
   }
 
@@ -1092,6 +1143,7 @@ async function attachGroupToSection(group, sectionName, target = null) {
     section: group.section,
     parentRowId: group.parentRowId,
     hostRowIndex: group.hostRowIndex ?? null,
+    coveredSeats: group.coveredSeats ?? null,
     top: group.top, left: group.left,
     seatSize: Number(group.seatSize), shape: group.shape,
     categoryId: group.categoryId,
@@ -1118,9 +1170,21 @@ async function detachGroup(group) {
     }
     group.shiftedHost = null;
   }
+  // Rendre au bloc les sièges que le groupe recouvrait
+  if (group.coveredSeats?.posKeys?.length) {
+    const host = seatRows.value.find((r) => r.id === group.coveredSeats.rowId);
+    if (host) {
+      const keep = new Set(group.coveredSeats.posKeys);
+      host.deletedSeats = (host.deletedSeats || []).filter((k) => !keep.has(k));
+      await adminApi.updateSeatRow(host.id, { deletedSeats: host.deletedSeats }, props.venueId);
+    }
+    group.coveredSeats = null;
+  }
   group.section = '';
   group.parentRowId = null;
-  await adminApi.updateSeatRow(group.id, { section: '', parentRowId: null, shiftedHost: null }, props.venueId);
+  await adminApi.updateSeatRow(group.id, {
+    section: '', parentRowId: null, shiftedHost: null, coveredSeats: null,
+  }, props.venueId);
   isDirty.value = true;
   emit('changed');
 }
@@ -2046,6 +2110,7 @@ async function persistSelected() {
       isGroup: !!r.isGroup,
       parentRowId: r.parentRowId ?? null,
       hostRowIndex: r.hostRowIndex ?? null,
+      coveredSeats: r.coveredSeats ?? null,
       shiftedHost: r.shiftedHost ?? null,
     }, props.venueId);
     // Les groupes rattachés ont pu être déplacés ou pivotés avec le bloc
@@ -2132,6 +2197,41 @@ async function checkBookedSeats(prefix) {
     );
   } catch (_) { return []; }
 }
+
+// Les sièges d'une liste de clés qui sont vendus ou en attente sur l'événement
+async function checkBookedSeatKeys(keys) {
+  if (!props.eventId || !keys.length) return [];
+  try {
+    const seats = await adminApi.getEventSeats(props.eventId);
+    const list = Array.isArray(seats) ? seats : (seats.seats || []);
+    const wanted = new Set(keys);
+    return list.filter((s) => (s.status === 'booked' || s.status === 'hold') && wanted.has(s.seatKey));
+  } catch (_) { return []; }
+}
+
+// Sièges du bloc physiquement recouverts par le groupe.
+// Sans ça ils restent sous lui : invisibles, mais toujours vendables, et leur
+// couleur déborde autour des sièges du groupe.
+function coveredTargetSeats(group, target, dataR) {
+  const ss = target.seatSize || 22;
+  const step = ss + ROW_GAP;
+  const labelBlock = (!target.isGroup && ss >= 12) ? (16 + 6) : 0;
+  const rowX0 = (target.left || 0) + cardInsetOf(target) + labelBlock
+              + (rowOverrideOf(target, dataR).colOffset || 0) * step;
+
+  const gCols = rowColsAt(group, 0);
+  const gX0 = (group.left || 0) + cardInsetOf(group);
+  const gX1 = gX0 + gCols * ss + Math.max(0, gCols - 1) * ROW_GAP;
+
+  const covered = [];
+  for (let c = 0; c < rowColsAt(target, dataR); c++) {
+    const x0 = rowX0 + c * step;
+    if (x0 < gX1 && x0 + ss > gX0) covered.push(`${dataR}-${c}`);
+  }
+  return covered;
+}
+
+function rowOverrideOf(row, dataR) { return (row.rowOverrides || {})[dataR] || {}; }
 
 async function removeSelected() {
   deleteBlockMessage.value = '';
