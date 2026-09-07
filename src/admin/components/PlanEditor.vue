@@ -1020,6 +1020,9 @@ function snapGroupToRow(group, target) {
     group.shiftedHost = null;
   }
 
+  // Rangée d'accroche : c'est elle que le groupe suivra si le bloc est modifié
+  group.hostRowIndex = order[Math.min(bestPos, order.length - 1)];
+
   const labels = [];
   for (let k = 0; k < (group.rows || 1); k++) {
     const dataR = order[Math.min(bestPos + k, order.length - 1)];
@@ -1039,6 +1042,27 @@ function snapGroupToRow(group, target) {
 
   resolveGroupKeyCollisions(group);
   return { labels, onLeft, target, touched };
+}
+
+// Le groupe doit rester soudé à sa rangée : modifier la taille des sièges, le
+// nombre de rangées ou leur ordre déplace la rangée sous lui.
+function realignAttachedGroups(parent) {
+  if (!parent || parent.isGroup) return;
+  const order = displayOrder(parent);
+  for (const g of attachedGroupsOf(parent.id)) {
+    const dataR = g.hostRowIndex;
+    if (dataR == null) continue;
+    const pos = order.indexOf(dataR);
+    if (pos < 0) continue;
+    g.seatSize = parent.seatSize || 22;
+    g.shape    = parent.shape || 'square';
+    g.rotation = parent.rotation || 0;
+    // Sur un bloc pivoté, la position vient de rotateAttachedGroups, qui
+    // travaille dans le repère tourné : recalculer top ici l'écraserait.
+    if (!(parent.rotation || 0)) {
+      g.top = Math.max(0, Math.round((parent.top || 0) + rowTopOffset(parent, pos) - cardInsetOf(g)));
+    }
+  }
 }
 
 async function attachGroupToSection(group, sectionName, target = null) {
@@ -1066,6 +1090,7 @@ async function attachGroupToSection(group, sectionName, target = null) {
   await adminApi.updateSeatRow(group.id, {
     section: group.section,
     parentRowId: group.parentRowId,
+    hostRowIndex: group.hostRowIndex ?? null,
     top: group.top, left: group.left,
     seatSize: Number(group.seatSize), shape: group.shape,
     categoryId: group.categoryId,
@@ -1304,6 +1329,8 @@ function onPointerMove(ev) {
   } else if (drag.mode === 'resizeSeatRow') {
     const item = seatRows.value.find((x) => x.id === drag.id);
     if (item) {
+      // Ajouter ou retirer des rangées déplace celles d'en dessous
+      queueMicrotask(() => realignAttachedGroups(item));
       // Ramène le déplacement souris dans le repère du bloc (rotation inverse).
       const rot = ((item.rotation || 0) * Math.PI) / 180;
       const cos = Math.cos(rot), sin = Math.sin(rot);
@@ -1987,6 +2014,8 @@ async function removeObjectSelection() {
 let saveTimer = null;
 function scheduleSave() {
   isDirty.value = true;
+  // Une modification du bloc déplace ses rangées : les groupes rattachés suivent
+  if (selectedSeatRow.value && !selectedSeatRow.value.isGroup) realignAttachedGroups(selectedSeatRow.value);
   clearTimeout(saveTimer);
   saveTimer = setTimeout(persistSelected, 350);
 }
@@ -2015,6 +2044,7 @@ async function persistSelected() {
       rowOrder: r.rowOrder || [],
       isGroup: !!r.isGroup,
       parentRowId: r.parentRowId ?? null,
+      hostRowIndex: r.hostRowIndex ?? null,
       shiftedHost: r.shiftedHost ?? null,
     }, props.venueId);
     // Les groupes rattachés ont pu être déplacés ou pivotés avec le bloc
@@ -3425,10 +3455,14 @@ async function saveAll(opts = {}) {
                     outlineOffset: '1px',
                   }"
                 >
-                  <!-- Poignée réordonnancement (visible seulement quand le bloc est sélectionné) -->
+                  <!-- Poignée réordonnancement (visible seulement quand le bloc est sélectionné).
+                       Hors du flux : dans le flux, elle apparaissait à la sélection et
+                       poussait tous les sièges du bloc de 14px, alors que les groupes
+                       rattachés — objets distincts — restaient en place et se
+                       superposaient. Les libellés de rangée, eux, restent dans le flux. -->
                   <div v-if="!row.isGroup && selected && selected.kind==='seatRow' && selected.id===row.id"
-                    class="shrink-0 flex flex-col items-center justify-center gap-0.5 cursor-grab active:cursor-grabbing"
-                    style="width:8px;padding:2px 0;pointer-events:auto;"
+                    class="flex flex-col items-center justify-center gap-0.5 cursor-grab active:cursor-grabbing"
+                    style="width:8px;padding:2px 0;pointer-events:auto;position:absolute;right:100%;margin-right:4px;top:50%;transform:translateY(-50%);"
                     :title="'Glisser pour déplacer la rangée ' + rowLabel"
                     @pointerdown.stop="startRowReorder($event, row, dPos, rIdx)"
                   >
