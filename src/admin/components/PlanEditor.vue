@@ -892,11 +892,51 @@ function rowTopOffset(row, displayPos) {
 // Sièges réellement dessinés (les supprimés n'en sont plus), et ceux qui
 // produisent une clé donc sont vendables. rows × cols ignorait les réglages
 // par rangée et annonçait un total qui ne correspondait à rien de visible.
+// Une rangée peut avoir son propre nombre de sièges, qui prime sur celui du
+// bloc — elle ne bouge alors plus quand on règle « Sièges / rang », sans que
+// rien ne l'indique.
+const rowsWithOwnCols = computed(() => {
+  const row = selectedSeatRow.value;
+  if (!row) return [];
+  const ov = row.rowOverrides || {};
+  const out = [];
+  for (let r = 0; r < (row.rows || 1); r++) {
+    const c = ov[r]?.cols;
+    if (c != null && c !== row.cols) out.push({ r, label: rowLabelAt(row, r), cols: c });
+  }
+  return out;
+});
+
+// Rendre toutes les rangées au réglage du bloc
+function alignRowsToBlock() {
+  const row = selectedSeatRow.value;
+  if (!row) return;
+  const all = { ...(row.rowOverrides || {}) };
+  for (const k of Object.keys(all)) {
+    if (all[k]?.cols != null) { const { cols, ...rest } = all[k]; all[k] = rest; }
+  }
+  row.rowOverrides = all;
+  scheduleSave();
+  showToast('Toutes les rangées suivent de nouveau le réglage du bloc', 'success', 2500);
+}
+
+// Les groupes rattachés font partie de la section : leurs sièges comptent
+// dans son total, sinon la section en annonce moins qu'elle n'en vend.
+function groupsOfBlock(row) {
+  return row.isGroup ? [] : attachedGroupsOf(row.id);
+}
 function visibleSeatCount(row) {
-  return buildSeats(row).filter((s) => s.status !== 'deleted').length;
+  const own = (r) => buildSeats(r).filter((s) => s.status !== 'deleted').length;
+  return own(row) + groupsOfBlock(row).reduce((n, g) => n + own(g), 0);
 }
 function sellableSeatCount(row) {
-  return seatRowKeys(row).length;
+  return seatRowKeys(row).length
+    + groupsOfBlock(row).reduce((n, g) => n + seatRowKeys(g).length, 0);
+}
+function groupSeatCount(row) {
+  return groupsOfBlock(row).reduce(
+    (n, g) => n + buildSeats(g).filter((s) => s.status !== 'deleted').length, 0,
+  );
 }
 
 // Groupes rattachés à un bloc — ils font partie de la section et suivent ses déplacements
@@ -4329,6 +4369,18 @@ async function saveAll(opts = {}) {
             <input v-model="selectedSeatRow.cols" @input="scheduleSave" type="number" min="1" max="60"
               class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
           </div>
+          <!-- Sans ça, régler ce champ semble sans effet sur ces rangées -->
+          <div v-if="rowsWithOwnCols.length" class="col-span-2 -mt-1">
+            <p class="text-[11px] text-amber-600 leading-snug">
+              Ce réglage ne s'applique pas à
+              <strong>{{ rowsWithOwnCols.map(r => r.label + ' (' + r.cols + ')').join(', ') }}</strong> :
+              ces rangées ont leur propre nombre de sièges.
+            </p>
+            <button @click="alignRowsToBlock"
+              class="mt-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 underline">
+              Aligner toutes les rangées sur le bloc
+            </button>
+          </div>
           <div>
             <label class="text-xs font-semibold text-gray-500">Forme des sièges</label>
             <select v-model="selectedSeatRow.shape" @change="scheduleSave" class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm">
@@ -4469,6 +4521,9 @@ async function saveAll(opts = {}) {
 
         <p class="text-xs text-gray-400">
           {{ visibleSeatCount(selectedSeatRow) }} siège(s)
+          <span v-if="groupSeatCount(selectedSeatRow)">
+            · dont {{ groupSeatCount(selectedSeatRow) }} en groupe(s) rattaché(s)
+          </span>
           <span v-if="sellableSeatCount(selectedSeatRow) !== visibleSeatCount(selectedSeatRow)">
             · {{ sellableSeatCount(selectedSeatRow) }} en vente
           </span>
