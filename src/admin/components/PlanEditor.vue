@@ -1078,12 +1078,17 @@ function snapGroupToRow(group, target) {
 // nombre de rangées ou leur ordre déplace la rangée sous lui.
 function realignAttachedGroups(parent) {
   if (!parent || parent.isGroup) return;
+  const lastRow = (parent.rows || 1) - 1;
   const order = displayOrder(parent);
+
   for (const g of attachedGroupsOf(parent.id)) {
+    if (g.hostRowIndex == null) continue;
+    // Le bloc a pu perdre des rangées : on ramène le groupe sur la dernière
+    if (g.hostRowIndex > lastRow) g.hostRowIndex = lastRow;
     const dataR = g.hostRowIndex;
-    if (dataR == null) continue;
     const pos = order.indexOf(dataR);
     if (pos < 0) continue;
+
     g.seatSize = parent.seatSize || 22;
     g.shape    = parent.shape || 'square';
     g.rotation = parent.rotation || 0;
@@ -1092,6 +1097,20 @@ function realignAttachedGroups(parent) {
     if (!(parent.rotation || 0)) {
       g.top = Math.max(0, Math.round((parent.top || 0) + rowTopOffset(parent, pos) - cardInsetOf(g)));
     }
+
+    // La taille des sièges et le nombre de sièges par rang déplacent les
+    // positions recouvertes : on rend les anciennes au bloc avant de reprendre
+    // les nouvelles, sans toucher aux sièges supprimés à la main.
+    const del = new Set(parent.deletedSeats || []);
+    if (g.coveredSeats?.rowId === parent.id) {
+      (g.coveredSeats.posKeys || []).forEach((k) => del.delete(k));
+    }
+    const covered = coveredTargetSeats(g, parent, dataR);
+    covered.forEach((k) => del.add(k));
+    parent.deletedSeats = [...del];
+    g.coveredSeats = covered.length
+      ? { rowId: parent.id, dataR, posKeys: covered }
+      : null;
   }
 }
 
@@ -2117,6 +2136,9 @@ async function persistSelected() {
     for (const g of attachedGroupsOf(r.id)) {
       await adminApi.updateSeatRow(g.id, {
         top: g.top, left: g.left, rotation: Number(g.rotation || 0),
+        seatSize: Number(g.seatSize || 22), shape: g.shape,
+        hostRowIndex: g.hostRowIndex ?? null,
+        coveredSeats: g.coveredSeats ?? null,
       }, props.venueId);
     }
   } else if (selectedFreeZone.value) {
