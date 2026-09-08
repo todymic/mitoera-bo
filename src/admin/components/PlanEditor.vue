@@ -933,11 +933,6 @@ function sellableSeatCount(row) {
   return seatRowKeys(row).length
     + groupsOfBlock(row).reduce((n, g) => n + seatRowKeys(g).length, 0);
 }
-function groupSeatCount(row) {
-  return groupsOfBlock(row).reduce(
-    (n, g) => n + buildSeats(g).filter((s) => s.status !== 'deleted').length, 0,
-  );
-}
 
 // Groupes rattachés à un bloc — ils font partie de la section et suivent ses déplacements
 function attachedGroupsOf(rowId) {
@@ -4521,9 +4516,6 @@ async function saveAll(opts = {}) {
 
         <p class="text-xs text-gray-400">
           {{ visibleSeatCount(selectedSeatRow) }} siège(s)
-          <span v-if="groupSeatCount(selectedSeatRow)">
-            · dont {{ groupSeatCount(selectedSeatRow) }} en groupe(s) rattaché(s)
-          </span>
           <span v-if="sellableSeatCount(selectedSeatRow) !== visibleSeatCount(selectedSeatRow)">
             · {{ sellableSeatCount(selectedSeatRow) }} en vente
           </span>
