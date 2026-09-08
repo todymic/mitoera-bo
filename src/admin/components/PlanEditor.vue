@@ -1041,6 +1041,14 @@ function snapGroupToRow(group, target) {
 
   // Rangée d'accroche : c'est elle que le groupe suivra si le bloc est modifié
   group.hostRowIndex = order[Math.min(bestPos, order.length - 1)];
+  // Bord d'ancrage : sans lui, raccourcir la rangée laisse le groupe posé dans
+  // le vide, à sa position absolue, hors de la section.
+  {
+    const span = rowSeatSpan(target, group.hostRowIndex);
+    const gX0 = (group.left || 0) + cardInsetOf(group);
+    const side = onLeft ? 'start' : 'end';
+    group.hostAnchor = { side, dx: Math.round(gX0 - (side === 'start' ? span.x0 : span.x1)) };
+  }
 
   const labels = [];
   for (let k = 0; k < (group.rows || 1); k++) {
@@ -1096,6 +1104,20 @@ function realignAttachedGroups(parent) {
     // travaille dans le repère tourné : recalculer top ici l'écraserait.
     if (!(parent.rotation || 0)) {
       g.top = Math.max(0, Math.round((parent.top || 0) + rowTopOffset(parent, pos) - cardInsetOf(g)));
+      // Groupe rattaché avant l'ancrage : on le déduit de sa position actuelle,
+      // une fois, plutôt que d'exiger un re-rattachement.
+      if (!g.hostAnchor) {
+        const span = rowSeatSpan(parent, dataR);
+        const gX0 = (g.left || 0) + cardInsetOf(g);
+        const side = gX0 + (rowColsAt(g, 0) * (g.seatSize || 22)) / 2 < (span.x0 + span.x1) / 2 ? 'start' : 'end';
+        g.hostAnchor = { side, dx: Math.round(gX0 - (side === 'start' ? span.x0 : span.x1)) };
+      }
+      // Recoller au bord d'ancrage : la rangée a pu s'allonger ou se raccourcir
+      if (g.hostAnchor) {
+        const span = rowSeatSpan(parent, dataR);
+        const anchorX = g.hostAnchor.side === 'start' ? span.x0 : span.x1;
+        g.left = Math.max(0, Math.round(anchorX + g.hostAnchor.dx - cardInsetOf(g)));
+      }
     }
 
     // La taille des sièges et le nombre de sièges par rang déplacent les
@@ -1163,6 +1185,7 @@ async function attachGroupToSection(group, sectionName, target = null) {
     parentRowId: group.parentRowId,
     hostRowIndex: group.hostRowIndex ?? null,
     coveredSeats: group.coveredSeats ?? null,
+    hostAnchor: group.hostAnchor ?? null,
     top: group.top, left: group.left,
     seatSize: Number(group.seatSize), shape: group.shape,
     categoryId: group.categoryId,
@@ -2130,6 +2153,7 @@ async function persistSelected() {
       parentRowId: r.parentRowId ?? null,
       hostRowIndex: r.hostRowIndex ?? null,
       coveredSeats: r.coveredSeats ?? null,
+      hostAnchor: r.hostAnchor ?? null,
       shiftedHost: r.shiftedHost ?? null,
     }, props.venueId);
     // Les groupes rattachés ont pu être déplacés ou pivotés avec le bloc
@@ -2139,6 +2163,7 @@ async function persistSelected() {
         seatSize: Number(g.seatSize || 22), shape: g.shape,
         hostRowIndex: g.hostRowIndex ?? null,
         coveredSeats: g.coveredSeats ?? null,
+        hostAnchor: g.hostAnchor ?? null,
       }, props.venueId);
     }
   } else if (selectedFreeZone.value) {
@@ -2234,13 +2259,19 @@ async function checkBookedSeatKeys(keys) {
 // Sièges du bloc physiquement recouverts par le groupe.
 // Sans ça ils restent sous lui : invisibles, mais toujours vendables, et leur
 // couleur déborde autour des sièges du groupe.
-function coveredTargetSeats(group, target, dataR) {
-  const ss = target.seatSize || 22;
+// Étendue horizontale des sièges d'une rangée, dans le repère du canvas
+function rowSeatSpan(row, dataR) {
+  const ss = row.seatSize || 22;
   const step = ss + ROW_GAP;
-  const labelBlock = (!target.isGroup && ss >= 12) ? (16 + 6) : 0;
-  const rowX0 = (target.left || 0) + cardInsetOf(target) + labelBlock
-              + (rowOverrideOf(target, dataR).colOffset || 0) * step;
+  const labelBlock = (!row.isGroup && ss >= 12) ? (16 + 6) : 0;
+  const cols = rowColsAt(row, dataR);
+  const x0 = (row.left || 0) + cardInsetOf(row) + labelBlock
+           + (rowOverrideOf(row, dataR).colOffset || 0) * step;
+  return { x0, x1: x0 + cols * ss + Math.max(0, cols - 1) * ROW_GAP, step, ss };
+}
 
+function coveredTargetSeats(group, target, dataR) {
+  const { x0: rowX0, step, ss } = rowSeatSpan(target, dataR);
   const gCols = rowColsAt(group, 0);
   const gX0 = (group.left || 0) + cardInsetOf(group);
   const gX1 = gX0 + gCols * ss + Math.max(0, gCols - 1) * ROW_GAP;
