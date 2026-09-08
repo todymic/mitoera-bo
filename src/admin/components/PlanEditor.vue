@@ -2,7 +2,7 @@
 import { ref, reactive, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { adminApi } from '../services/adminApi';
 import { computeSeatLabel, computeAxisLabel, firstAxisLabel, ROW_FORMATS, COL_FORMATS, DIRECTIONS } from '../../services/seatLabel';
-import { seatRowKeys } from '../../services/seatPlan.js';
+import { seatRowKeys, buildSeats } from '../../services/seatPlan.js';
 import { FREE_ZONE_ICONS, FREE_ZONE_PATTERNS, iconById, patternStyle } from '../../services/icons';
 import PreviewPlan from './PreviewPlan.vue';
 import { activePlanId, activePlanDirty, activePlanStatus } from '../services/activePlan.js';
@@ -889,6 +889,16 @@ function cardInsetOf(row) { return row.isGroup ? 0 : CARD_INSET; }
 function rowTopOffset(row, displayPos) {
   return cardInsetOf(row) + displayPos * ((row.seatSize || 22) + ROW_GAP);
 }
+// Sièges réellement dessinés (les supprimés n'en sont plus), et ceux qui
+// produisent une clé donc sont vendables. rows × cols ignorait les réglages
+// par rangée et annonçait un total qui ne correspondait à rien de visible.
+function visibleSeatCount(row) {
+  return buildSeats(row).filter((s) => s.status !== 'deleted').length;
+}
+function sellableSeatCount(row) {
+  return seatRowKeys(row).length;
+}
+
 // Groupes rattachés à un bloc — ils font partie de la section et suivent ses déplacements
 function attachedGroupsOf(rowId) {
   return seatRows.value.filter((r) => r.isGroup && r.parentRowId === rowId);
@@ -1097,9 +1107,13 @@ function realignAttachedGroups(parent) {
     const pos = order.indexOf(dataR);
     if (pos < 0) continue;
 
-    g.seatSize = parent.seatSize || 22;
-    g.shape    = parent.shape || 'square';
-    g.rotation = parent.rotation || 0;
+    // Le groupe fait partie de la section : il en porte le nom et la catégorie,
+    // et les suit quand ils changent.
+    g.section    = parent.section;
+    g.categoryId = parent.categoryId;
+    g.seatSize   = parent.seatSize || 22;
+    g.shape      = parent.shape || 'square';
+    g.rotation   = parent.rotation || 0;
     // Sur un bloc pivoté, la position vient de rotateAttachedGroups, qui
     // travaille dans le repère tourné : recalculer top ici l'écraserait.
     if (!(parent.rotation || 0)) {
@@ -2159,6 +2173,7 @@ async function persistSelected() {
     // Les groupes rattachés ont pu être déplacés ou pivotés avec le bloc
     for (const g of attachedGroupsOf(r.id)) {
       await adminApi.updateSeatRow(g.id, {
+        section: g.section, categoryId: g.categoryId,
         top: g.top, left: g.left, rotation: Number(g.rotation || 0),
         seatSize: Number(g.seatSize || 22), shape: g.shape,
         hostRowIndex: g.hostRowIndex ?? null,
@@ -4453,8 +4468,14 @@ async function saveAll(opts = {}) {
         </div>
 
         <p class="text-xs text-gray-400">
-          {{ Number(selectedSeatRow.rows) * Number(selectedSeatRow.cols) || 0 }} sièges · aperçu :
-          <strong>{{ computeAxisLabel(0, selectedSeatRow.rows, selectedSeatRow.rowFormat || 'A-Z', selectedSeatRow.rowDirection || 'normal') }}{{ computeAxisLabel(0, selectedSeatRow.cols, selectedSeatRow.colFormat || '1-9', selectedSeatRow.colDirection || 'normal') }}</strong>…
+          {{ visibleSeatCount(selectedSeatRow) }} siège(s)
+          <span v-if="sellableSeatCount(selectedSeatRow) !== visibleSeatCount(selectedSeatRow)">
+            · {{ sellableSeatCount(selectedSeatRow) }} en vente
+          </span>
+        </p>
+        <p class="text-xs text-gray-400">
+          Première clé de siège :
+          <strong class="font-mono text-gray-600">{{ seatRowKeys(selectedSeatRow)[0] || '—' }}</strong>
         </p>
         <p class="text-[11px] text-gray-300">Cliquez sur un siège pour sélectionner sa rangée et la configurer. Tirez le bord du bloc pour ajouter/retirer des sièges.</p>
         <button @click="removeSelected" class="w-full mt-2 py-2 rounded-lg bg-red-50 text-red-500 text-sm font-semibold hover:bg-red-100">
