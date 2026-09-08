@@ -45,6 +45,23 @@ const sections = [
     ],
   },
   { id: 'widget',  label: 'Widget JS' },
+  { id: 'sdk-php', label: 'SDK PHP',
+    children: [
+      { id: 'sdk-php-install',  label: 'Installation' },
+      { id: 'sdk-php-holds',    label: 'Holds & réservations' },
+      { id: 'sdk-php-sessions', label: 'Sessions' },
+      { id: 'sdk-php-events',   label: 'Événements' },
+      { id: 'sdk-php-charts',   label: 'Plans' },
+      { id: 'sdk-php-errors',   label: 'Gestion des erreurs' },
+    ],
+  },
+  { id: 'sdk-js', label: 'SDK JavaScript',
+    children: [
+      { id: 'sdk-js-install',  label: 'Installation' },
+      { id: 'sdk-js-server',   label: 'Côté serveur' },
+      { id: 'sdk-js-browser',  label: 'Côté navigateur' },
+    ],
+  },
   { id: 'errors',  label: 'Codes d\'erreur' },
 ];
 
@@ -789,6 +806,329 @@ chart.<span class="c-fn">render</span>();</code></pre>
             <tr><td><code>eventKey</code></td><td>string (uuid)</td><td>UUID de l'événement lié (optionnel)</td></tr>
           </tbody>
         </table>
+      </section>
+
+      <!-- SDK PHP -->
+      <section id="sdk-php" class="doc-section">
+        <h2>SDK PHP</h2>
+        <p>Client officiel Mitoera pour PHP. Prérequis : PHP ≥ 8.1 et Guzzle 7.</p>
+
+        <section id="sdk-php-install">
+          <h3>Installation</h3>
+          <div class="code-block">
+            <div class="code-label">bash</div>
+            <pre><code>composer require mitoera/php-sdk</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">PHP — démarrage rapide</div>
+            <pre><code><span class="c-key">use</span> Mitoera\Sdk\MitoeraClient;
+
+<span class="c-val">$client</span> = <span class="c-key">new</span> <span class="c-fn">MitoeraClient</span>([
+    <span class="c-str">'keyId'</span>  => <span class="c-str">'pk_live_xxxx'</span>,
+    <span class="c-str">'secret'</span> => <span class="c-str">'sk_xxxxxxxx'</span>,
+]);</code></pre>
+          </div>
+          <p>Le mode sandbox est <strong>déduit automatiquement</strong> du préfixe : <code>pk_test_</code> → sandbox, <code>pk_live_</code> → production.</p>
+          <table class="params-table">
+            <thead><tr><th>Option</th><th>Type</th><th>Défaut</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>keyId</code></td><td>string</td><td>—</td><td>Clé publique <span class="required">requis</span></td></tr>
+              <tr><td><code>secret</code></td><td>string</td><td>—</td><td>Clé secrète <span class="required">requis</span></td></tr>
+              <tr><td><code>baseUrl</code></td><td>string</td><td><code>https://api.mitoera.com</code></td><td>URL de l'API</td></tr>
+              <tr><td><code>timeout</code></td><td>int</td><td><code>30</code></td><td>Timeout HTTP (secondes)</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="sdk-php-holds">
+          <h3>Holds &amp; réservations</h3>
+          <p>Toute la gestion des sièges passe par <code>$client-&gt;holds</code>.</p>
+          <div class="code-block">
+            <div class="code-label">PHP</div>
+            <pre><code><span class="c-comment">// Bloquer des sièges (10 min)</span>
+<span class="c-val">$hold</span> = <span class="c-val">$client</span>-><span class="c-fn">holds</span>-><span class="c-fn">hold</span>(<span class="c-val">$eventId</span>, [<span class="c-str">'A1'</span>, <span class="c-str">'A2'</span>], <span class="c-val">$holdToken</span>);
+<span class="c-comment">// $hold->holdToken, ->seatKeys, ->expiresAt (DateTimeImmutable), ->durationSeconds</span>
+
+<span class="c-comment">// Confirmer après paiement</span>
+<span class="c-val">$book</span> = <span class="c-val">$client</span>-><span class="c-fn">holds</span>-><span class="c-fn">book</span>(<span class="c-val">$eventId</span>, [<span class="c-str">'A1'</span>, <span class="c-str">'A2'</span>], <span class="c-val">$holdToken</span>);
+<span class="c-comment">// $book->bookedSeats, ->eventId, ->bookedAt (DateTimeImmutable)</span>
+
+<span class="c-comment">// Libérer si l'utilisateur abandonne</span>
+<span class="c-val">$client</span>-><span class="c-fn">holds</span>-><span class="c-fn">release</span>(<span class="c-val">$eventId</span>, [<span class="c-str">'A1'</span>, <span class="c-str">'A2'</span>], <span class="c-val">$holdToken</span>);
+
+<span class="c-comment">// Changer le statut manuellement</span>
+<span class="c-val">$client</span>-><span class="c-fn">holds</span>-><span class="c-fn">changeStatus</span>(<span class="c-val">$eventId</span>, [<span class="c-str">'A1'</span>], <span class="c-str">'booked'</span>);</code></pre>
+          </div>
+        </section>
+
+        <section id="sdk-php-sessions">
+          <h3>Sessions</h3>
+          <p>Créez une session côté serveur avant d'afficher le widget — le <code>sessionToken</code> est transmis au front.</p>
+          <div class="code-block">
+            <div class="code-label">PHP</div>
+            <pre><code><span class="c-comment">// Créer une session (à appeler depuis votre back-end)</span>
+<span class="c-val">$session</span> = <span class="c-val">$client</span>-><span class="c-fn">sessions</span>-><span class="c-fn">create</span>(<span class="c-val">$eventId</span>);
+<span class="c-comment">// → $session->sessionToken  (à passer au widget JS)</span>
+<span class="c-comment">// → $session->holdToken     (token de hold de la session)</span>
+<span class="c-comment">// → $session->expiresIn     (durée en secondes)</span>
+
+<span class="c-comment">// Rafraîchir une session expirée</span>
+<span class="c-val">$session</span> = <span class="c-val">$client</span>-><span class="c-fn">sessions</span>-><span class="c-fn">refresh</span>(<span class="c-val">$sessionToken</span>);</code></pre>
+          </div>
+          <div class="code-block" style="margin-top:12px">
+            <div class="code-label">Flux recommandé</div>
+            <pre><code><span class="c-comment">// 1. Back-end : créer session avant d'afficher la page</span>
+<span class="c-val">$session</span> = <span class="c-val">$client</span>-><span class="c-fn">sessions</span>-><span class="c-fn">create</span>(<span class="c-val">$eventId</span>);
+
+<span class="c-comment">// 2. Transmettre sessionToken au front → widget JS gère le hold</span>
+
+<span class="c-comment">// 3. Après paiement : confirmer la réservation</span>
+<span class="c-val">$book</span> = <span class="c-val">$client</span>-><span class="c-fn">holds</span>-><span class="c-fn">book</span>(
+    <span class="c-val">$session</span>-><span class="c-fn">eventId</span>,
+    <span class="c-val">$selectedSeatKeys</span>,
+    <span class="c-val">$session</span>-><span class="c-fn">holdToken</span>,
+);
+
+<span class="c-comment">// 4. Abandon / expiration</span>
+<span class="c-val">$client</span>-><span class="c-fn">holds</span>-><span class="c-fn">release</span>(<span class="c-val">$session</span>-><span class="c-fn">eventId</span>, <span class="c-val">$selectedSeatKeys</span>, <span class="c-val">$session</span>-><span class="c-fn">holdToken</span>);</code></pre>
+          </div>
+        </section>
+
+        <section id="sdk-php-events">
+          <h3>Événements</h3>
+          <div class="code-block">
+            <div class="code-label">PHP</div>
+            <pre><code><span class="c-val">$client</span>-><span class="c-fn">events</span>-><span class="c-fn">listAll</span>();
+<span class="c-val">$client</span>-><span class="c-fn">events</span>-><span class="c-fn">get</span>(<span class="c-val">$eventId</span>);
+<span class="c-val">$client</span>-><span class="c-fn">events</span>-><span class="c-fn">findByIdentifier</span>(<span class="c-str">'mon-evenement'</span>);
+<span class="c-val">$client</span>-><span class="c-fn">events</span>-><span class="c-fn">create</span>(<span class="c-str">'Mon Concert'</span>, <span class="c-str">'mon-concert'</span>, <span class="c-val">$chartId</span>);
+<span class="c-val">$client</span>-><span class="c-fn">events</span>-><span class="c-fn">update</span>(<span class="c-val">$eventId</span>, [<span class="c-str">'title'</span> => <span class="c-str">'Nouveau titre'</span>]);
+<span class="c-val">$client</span>-><span class="c-fn">events</span>-><span class="c-fn">delete</span>(<span class="c-val">$eventId</span>);
+
+<span class="c-comment">// Statuts des sièges → SeatStatusMap</span>
+<span class="c-val">$map</span> = <span class="c-val">$client</span>-><span class="c-fn">events</span>-><span class="c-fn">listSeats</span>(<span class="c-val">$eventId</span>);
+<span class="c-val">$map</span>-><span class="c-fn">available</span>();         <span class="c-comment">// string[] — sièges libres</span>
+<span class="c-val">$map</span>-><span class="c-fn">held</span>();              <span class="c-comment">// string[] — sièges bloqués</span>
+<span class="c-val">$map</span>-><span class="c-fn">booked</span>();            <span class="c-comment">// string[] — sièges réservés</span>
+<span class="c-val">$map</span>-><span class="c-fn">isAvailable</span>(<span class="c-str">'A1'</span>);   <span class="c-comment">// bool</span>
+<span class="c-key">foreach</span> (<span class="c-val">$map</span> <span class="c-key">as</span> <span class="c-val">$key</span> => <span class="c-val">$status</span>) { <span class="c-comment">/* … */</span> }</code></pre>
+          </div>
+        </section>
+
+        <section id="sdk-php-charts">
+          <h3>Plans de salle</h3>
+          <div class="code-block">
+            <div class="code-label">PHP</div>
+            <pre><code><span class="c-val">$chart</span> = <span class="c-val">$client</span>-><span class="c-fn">charts</span>-><span class="c-fn">create</span>(<span class="c-str">'Salle Olympia'</span>);
+<span class="c-val">$client</span>-><span class="c-fn">charts</span>-><span class="c-fn">setObjects</span>(<span class="c-val">$chart</span>-><span class="c-fn">id</span>, <span class="c-val">$objects</span>);
+<span class="c-val">$client</span>-><span class="c-fn">charts</span>-><span class="c-fn">publish</span>(<span class="c-val">$chart</span>-><span class="c-fn">id</span>);
+<span class="c-val">$client</span>-><span class="c-fn">charts</span>-><span class="c-fn">listAll</span>();
+<span class="c-val">$client</span>-><span class="c-fn">charts</span>-><span class="c-fn">get</span>(<span class="c-val">$chartId</span>);
+<span class="c-val">$client</span>-><span class="c-fn">charts</span>-><span class="c-fn">update</span>(<span class="c-val">$chartId</span>, [<span class="c-str">'name'</span> => <span class="c-str">'Nouvelle salle'</span>]);
+<span class="c-val">$client</span>-><span class="c-fn">charts</span>-><span class="c-fn">delete</span>(<span class="c-val">$chartId</span>);
+
+<span class="c-comment">// $chart->isPublished(), ->isDraft(), ->pendingChanges</span>
+
+<span class="c-comment">// Catégories</span>
+<span class="c-val">$client</span>-><span class="c-fn">categories</span>-><span class="c-fn">listForChart</span>(<span class="c-val">$chartId</span>);
+<span class="c-val">$client</span>-><span class="c-fn">categories</span>-><span class="c-fn">create</span>(<span class="c-val">$chartId</span>, <span class="c-str">'VIP'</span>, <span class="c-str">'#FFD700'</span>);
+<span class="c-val">$client</span>-><span class="c-fn">categories</span>-><span class="c-fn">update</span>(<span class="c-val">$chartId</span>, <span class="c-val">$categoryKey</span>, [<span class="c-str">'name'</span> => <span class="c-str">'VIP+'</span>]);
+<span class="c-val">$client</span>-><span class="c-fn">categories</span>-><span class="c-fn">delete</span>(<span class="c-val">$chartId</span>, <span class="c-val">$categoryKey</span>);</code></pre>
+          </div>
+        </section>
+
+        <section id="sdk-php-errors">
+          <h3>Gestion des erreurs</h3>
+          <div class="code-block">
+            <div class="code-label">PHP</div>
+            <pre><code><span class="c-key">use</span> Mitoera\Sdk\Exception\ApiException;
+<span class="c-key">use</span> Mitoera\Sdk\Exception\AuthException;
+
+<span class="c-key">try</span> {
+    <span class="c-val">$client</span>-><span class="c-fn">holds</span>-><span class="c-fn">hold</span>(<span class="c-val">$eventId</span>, [<span class="c-str">'A1'</span>], <span class="c-val">$holdToken</span>);
+} <span class="c-key">catch</span> (ApiException <span class="c-val">$e</span>) {
+    <span class="c-fn">echo</span> <span class="c-val">$e</span>-><span class="c-fn">statusCode</span>; <span class="c-comment">// ex. 409</span>
+    <span class="c-fn">echo</span> <span class="c-val">$e</span>-><span class="c-fn">getMessage</span>(); <span class="c-comment">// "Seat already held"</span>
+} <span class="c-key">catch</span> (AuthException <span class="c-val">$e</span>) {
+    <span class="c-comment">// Clé invalide ou manquante</span>
+}</code></pre>
+          </div>
+        </section>
+      </section>
+
+      <!-- SDK JavaScript / TypeScript -->
+      <section id="sdk-js" class="doc-section">
+        <h2>SDK JavaScript</h2>
+        <p>Package <code>@mitoera/sdk</code> — compatible Node 18+, ESM et CJS. Inclut un module navigateur pour le widget.</p>
+
+        <section id="sdk-js-install">
+          <h3>Installation</h3>
+          <div class="code-block">
+            <div class="code-label">bash</div>
+            <pre><code>npm install @mitoera/sdk</code></pre>
+          </div>
+        </section>
+
+        <section id="sdk-js-server">
+          <h3>Côté serveur (Node)</h3>
+          <p>Même interface que le SDK PHP. Toutes les méthodes retournent des <code>Promise</code>.</p>
+          <div class="code-block">
+            <div class="code-label">TypeScript / ESM</div>
+            <pre><code><span class="c-key">import</span> { MitoeraClient } <span class="c-key">from</span> <span class="c-str">'@mitoera/sdk'</span>;
+
+<span class="c-key">const</span> <span class="c-val">client</span> = <span class="c-key">new</span> <span class="c-fn">MitoeraClient</span>({
+  keyId:  <span class="c-str">'pk_live_xxxx'</span>,
+  secret: <span class="c-str">'sk_xxxxxxxx'</span>,
+});</code></pre>
+          </div>
+          <div class="code-block" style="margin-top:12px">
+            <div class="code-label">Holds &amp; réservations</div>
+            <pre><code><span class="c-comment">// Bloquer des sièges</span>
+<span class="c-key">const</span> hold = <span class="c-key">await</span> <span class="c-val">client</span>.<span class="c-fn">holds</span>.<span class="c-fn">hold</span>(eventId, [<span class="c-str">'A1'</span>, <span class="c-str">'A2'</span>], holdToken);
+<span class="c-comment">// hold.holdToken, .seatKeys, .expiresAt (Date), .durationSeconds</span>
+
+<span class="c-comment">// Confirmer</span>
+<span class="c-key">const</span> book = <span class="c-key">await</span> <span class="c-val">client</span>.<span class="c-fn">holds</span>.<span class="c-fn">book</span>(eventId, [<span class="c-str">'A1'</span>, <span class="c-str">'A2'</span>], holdToken);
+
+<span class="c-comment">// Libérer</span>
+<span class="c-key">await</span> <span class="c-val">client</span>.<span class="c-fn">holds</span>.<span class="c-fn">release</span>(eventId, [<span class="c-str">'A1'</span>, <span class="c-str">'A2'</span>], holdToken);</code></pre>
+          </div>
+          <div class="code-block" style="margin-top:12px">
+            <div class="code-label">Sessions</div>
+            <pre><code><span class="c-key">const</span> session = <span class="c-key">await</span> <span class="c-val">client</span>.<span class="c-fn">sessions</span>.<span class="c-fn">create</span>(eventId);
+<span class="c-comment">// → session.sessionToken  (à transmettre au front pour le widget)</span>
+<span class="c-comment">// → session.holdToken     (token de hold de la session)</span></code></pre>
+          </div>
+          <div class="code-block" style="margin-top:12px">
+            <div class="code-label">Événements &amp; statuts de sièges</div>
+            <pre><code><span class="c-key">const</span> events = <span class="c-key">await</span> <span class="c-val">client</span>.<span class="c-fn">events</span>.<span class="c-fn">listAll</span>();
+<span class="c-key">const</span> event  = <span class="c-key">await</span> <span class="c-val">client</span>.<span class="c-fn">events</span>.<span class="c-fn">get</span>(eventId);
+
+<span class="c-key">const</span> map = <span class="c-key">await</span> <span class="c-val">client</span>.<span class="c-fn">events</span>.<span class="c-fn">listSeats</span>(eventId);
+map.<span class="c-fn">available</span>();           <span class="c-comment">// string[]</span>
+map.<span class="c-fn">held</span>();                <span class="c-comment">// string[]</span>
+map.<span class="c-fn">isAvailable</span>(<span class="c-str">'A1'</span>);    <span class="c-comment">// boolean</span>
+
+<span class="c-key">for</span> (<span class="c-key">const</span> [key, status] <span class="c-key">of</span> map) { <span class="c-comment">/* … */</span> }</code></pre>
+          </div>
+          <div class="code-block" style="margin-top:12px">
+            <div class="code-label">Gestion des erreurs</div>
+            <pre><code><span class="c-key">import</span> { ApiException, AuthException } <span class="c-key">from</span> <span class="c-str">'@mitoera/sdk'</span>;
+
+<span class="c-key">try</span> {
+  <span class="c-key">await</span> <span class="c-val">client</span>.<span class="c-fn">holds</span>.<span class="c-fn">hold</span>(eventId, [<span class="c-str">'A1'</span>], holdToken);
+} <span class="c-key">catch</span> (e) {
+  <span class="c-key">if</span> (e <span class="c-key">instanceof</span> ApiException) {
+    console.<span class="c-fn">error</span>(e.statusCode, e.message);  <span class="c-comment">// ex. 409 "Seat already held"</span>
+  }
+}</code></pre>
+          </div>
+        </section>
+
+        <section id="sdk-js-browser">
+          <h3>Côté navigateur</h3>
+          <p>Le module <code>@mitoera/sdk/browser</code> exporte <code>SeatingChart</code> et <code>ChartDesigner</code> — équivalents TypeScript des widgets <code>Mitoera.SeatingChart</code> (via CDN <code>mitoera-widget.js</code>) et <code>mitoera.ChartDesigner</code> (via CDN <code>mitoera-editor.js</code>).</p>
+
+          <h4 style="margin-top:20px;margin-bottom:8px;">Option A — CDN (sans bundler)</h4>
+          <div class="code-block">
+            <div class="code-label">HTML</div>
+            <pre><code><span class="c-key">&lt;div</span> id=<span class="c-str">"mitoera-chart"</span> style=<span class="c-str">"width:100%;height:600px"</span><span class="c-key">&gt;&lt;/div&gt;</span>
+<span class="c-key">&lt;script</span> src=<span class="c-str">"https://api.mitoera.com/js/mitoera-widget.js"</span><span class="c-key">&gt;&lt;/script&gt;</span>
+<span class="c-key">&lt;script&gt;</span>
+  <span class="c-key">const</span> chart = <span class="c-key">new</span> Mitoera.<span class="c-fn">SeatingChart</span>({
+    divId:        <span class="c-str">'mitoera-chart'</span>,
+    workspaceKey: <span class="c-str">'pk_live_xxx'</span>,
+    event:        <span class="c-str">'mon-evenement'</span>,
+    <span class="c-fn">onReady</span>: ({ sessionToken, holdToken }) => {
+      console.<span class="c-fn">log</span>(<span class="c-str">'Prêt'</span>, sessionToken);
+    },
+    <span class="c-fn">onSelectionChange</span>: (seats) => {
+      console.<span class="c-fn">log</span>(<span class="c-str">'Sièges sélectionnés'</span>, seats);
+    },
+    <span class="c-fn">onCheckout</span>: (seats) => {
+      <span class="c-comment">// déclenché quand l'utilisateur clique "Valider"</span>
+      startPayment(seats);
+    },
+  });
+  chart.<span class="c-fn">render</span>();
+<span class="c-key">&lt;/script&gt;</span></code></pre>
+          </div>
+
+          <h4 style="margin-top:20px;margin-bottom:8px;">Option B — npm (Vue, React, etc.)</h4>
+          <div class="code-block">
+            <div class="code-label">TypeScript / ESM</div>
+            <pre><code><span class="c-key">import</span> { SeatingChart } <span class="c-key">from</span> <span class="c-str">'@mitoera/sdk/browser'</span>;
+
+<span class="c-key">const</span> chart = <span class="c-key">new</span> <span class="c-fn">SeatingChart</span>({
+  divId:        <span class="c-str">'mitoera-chart'</span>,
+  workspaceKey: <span class="c-str">'pk_live_xxx'</span>,
+  event:        <span class="c-str">'mon-evenement'</span>,
+  categoryPrices: {
+    <span class="c-str">'cat-vip'</span>:    { price: <span class="c-val">150</span>, currency: <span class="c-str">'EUR'</span> },
+    <span class="c-str">'cat-normal'</span>: { price: <span class="c-val">50</span>,  currency: <span class="c-str">'EUR'</span> },
+  },
+  <span class="c-fn">onReady</span>: ({ sessionToken, holdToken, eventId }) => { <span class="c-comment">/* … */</span> },
+  <span class="c-fn">onSelectionChange</span>: (seats) => { <span class="c-comment">/* … */</span> },
+  <span class="c-fn">onCheckout</span>: (seats) => { <span class="c-comment">/* … */</span> },
+});
+chart.<span class="c-fn">render</span>();
+
+<span class="c-comment">// Méthodes disponibles après render()</span>
+chart.<span class="c-fn">getSelectedSeats</span>();          <span class="c-comment">// SeatInfo[]</span>
+chart.<span class="c-fn">getSessionToken</span>();           <span class="c-comment">// string | null</span>
+chart.<span class="c-fn">getHoldToken</span>();              <span class="c-comment">// string | null</span>
+chart.<span class="c-fn">selectSeats</span>([<span class="c-str">'A1'</span>, <span class="c-str">'A2'</span>]);  <span class="c-comment">// pré-sélection (restauration panier)</span>
+chart.<span class="c-fn">setCategoryPrices</span>(prices);   <span class="c-comment">// mise à jour dynamique des prix</span>
+chart.<span class="c-fn">destroy</span>();                   <span class="c-comment">// nettoie l'iframe et les listeners</span></code></pre>
+          </div>
+
+          <table class="params-table" style="margin-top:16px">
+            <thead><tr><th>Option</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>divId</code></td><td>string</td><td>ID du <code>&lt;div&gt;</code> conteneur <span class="required">requis</span></td></tr>
+              <tr><td><code>workspaceKey</code></td><td>string</td><td>Clé publique (<code>pk_live_</code> ou <code>pk_test_</code>) <span class="required">requis</span></td></tr>
+              <tr><td><code>event</code></td><td>string</td><td>Slug ou UUID de l'événement <span class="required">requis</span></td></tr>
+              <tr><td><code>categoryPrices</code></td><td>Record</td><td>Prix par catégorie <code>{ catId: { price, currency } }</code></td></tr>
+              <tr><td><code>showLegend</code></td><td>boolean</td><td>Affiche la légende (défaut <code>true</code>)</td></tr>
+              <tr><td><code>showResume</code></td><td>boolean</td><td>Affiche le récap footer (défaut <code>false</code>)</td></tr>
+              <tr><td><code>onReady</code></td><td>function</td><td>Appelé quand le widget est chargé (<code>{ sessionToken, holdToken, eventId }</code>)</td></tr>
+              <tr><td><code>onSeatSelected</code></td><td>function</td><td>Siège sélectionné (<code>SeatInfo</code>)</td></tr>
+              <tr><td><code>onSeatDeselected</code></td><td>function</td><td>Siège désélectionné (<code>SeatInfo</code>)</td></tr>
+              <tr><td><code>onSelectionChange</code></td><td>function</td><td>Tableau complet des sièges sélectionnés à chaque changement</td></tr>
+              <tr><td><code>onCheckout</code></td><td>function</td><td>Clic "Valider" — active le bouton dans le widget</td></tr>
+            </tbody>
+          </table>
+
+          <h4 style="margin-top:24px;margin-bottom:8px;">ChartDesigner — éditeur de plan</h4>
+          <p>Intègre l'éditeur de plan de salle dans votre back-office. Nécessite une <strong>clé secrète</strong> (format <code>keyId:secret</code>).</p>
+          <div class="code-block">
+            <div class="code-label">HTML + CDN</div>
+            <pre><code><span class="c-key">&lt;div</span> id=<span class="c-str">"editor"</span> style=<span class="c-str">"width:100%;height:700px"</span><span class="c-key">&gt;&lt;/div&gt;</span>
+<span class="c-key">&lt;script</span> src=<span class="c-str">"https://bo.mitoera.com/mitoera-editor.js"</span><span class="c-key">&gt;&lt;/script&gt;</span>
+<span class="c-key">&lt;script&gt;</span>
+  <span class="c-key">const</span> designer = <span class="c-key">new</span> mitoera.<span class="c-fn">ChartDesigner</span>({
+    divId:     <span class="c-str">'editor'</span>,
+    secretKey: <span class="c-str">'pk_live_xxx:sk_xxxxxxxx'</span>,
+    chartKey:  <span class="c-str">'uuid-du-plan'</span>,
+    eventKey:  <span class="c-str">'uuid-evenement'</span>,  <span class="c-comment">// optionnel</span>
+  });
+  designer.<span class="c-fn">render</span>();
+<span class="c-key">&lt;/script&gt;</span></code></pre>
+          </div>
+          <div class="code-block" style="margin-top:12px">
+            <div class="code-label">TypeScript / ESM</div>
+            <pre><code><span class="c-key">import</span> { ChartDesigner } <span class="c-key">from</span> <span class="c-str">'@mitoera/sdk/browser'</span>;
+
+<span class="c-key">const</span> designer = <span class="c-key">new</span> <span class="c-fn">ChartDesigner</span>({
+  divId:     <span class="c-str">'editor'</span>,
+  secretKey: <span class="c-str">'pk_live_xxx:sk_xxxxxxxx'</span>,
+  chartKey:  <span class="c-str">'uuid-du-plan'</span>,
+});
+<span class="c-key">await</span> designer.<span class="c-fn">render</span>();  <span class="c-comment">// async — récupère le token d'embed avant d'injecter l'iframe</span>
+<span class="c-comment">// Plus tard :</span>
+designer.<span class="c-fn">destroy</span>();</code></pre>
+          </div>
+        </section>
       </section>
 
       <!-- Errors -->
