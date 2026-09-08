@@ -895,6 +895,11 @@ function rowTopOffset(row, displayPos) {
 // Une rangée peut avoir son propre nombre de sièges, qui prime sur celui du
 // bloc — elle ne bouge alors plus quand on règle « Sièges / rang », sans que
 // rien ne l'indique.
+// Un groupe rattaché hérite de tout sauf de sa numérotation
+const isAttachedGroup = computed(
+  () => !!(selectedSeatRow.value?.isGroup && selectedSeatRow.value?.section),
+);
+
 const rowsWithOwnCols = computed(() => {
   const row = selectedSeatRow.value;
   if (!row) return [];
@@ -1918,6 +1923,22 @@ async function createFromClone(kind, src, dx, dy) {
     if (!created) return null;
 
     listFor(kind).push(created);
+
+    // Un bloc emmène ses groupes : ils font partie de la section, la copie
+    // doit en être une section complète et non un bloc amputé.
+    if (kind === 'seatRow' && !src.isGroup) {
+      for (const g of attachedGroupsOf(src.id)) {
+        const gc = JSON.parse(JSON.stringify(g));
+        delete gc.id; delete gc.venueId; delete gc._type;
+        gc.left = Math.max(0, Math.round((g.left || 0) + dx));
+        gc.top  = Math.max(0, Math.round((g.top  || 0) + dy));
+        gc.section = created.section;
+        gc.parentRowId = created.id;
+        const madeGroup = await adminApi.createSeatRow(props.venueId, gc);
+        if (madeGroup) seatRows.value.push(madeGroup);
+      }
+    }
+
     selectByKind(kind, created);
     isDirty.value = true;
     emit('changed');
@@ -2115,8 +2136,11 @@ async function persistPosition(kind, item) {
 async function deleteObject(kind, id) {
   if (kind === 'zone')              { await adminApi.deleteZone(id, props.venueId);         zones.value         = zones.value.filter((x) => x.id !== id); }
   else if (kind === 'seatRow')      {
-    // Les groupes rattachés redeviennent autonomes plutôt que de pointer dans le vide
-    for (const g of attachedGroupsOf(id)) await detachGroup(g);
+    // Les groupes font partie de la section : ils disparaissent avec elle
+    for (const g of attachedGroupsOf(id)) {
+      await adminApi.deleteSeatRow(g.id, props.venueId);
+      seatRows.value = seatRows.value.filter((x) => x.id !== g.id);
+    }
     await adminApi.deleteSeatRow(id, props.venueId);
     seatRows.value = seatRows.value.filter((x) => x.id !== id);
   }
@@ -2360,8 +2384,12 @@ async function removeSelected() {
     zones.value = zones.value.filter((x) => x.id !== z.id);
   } else if (selectedSeatRow.value) {
     const r = selectedSeatRow.value;
-    // Les groupes rattachés redeviennent autonomes plutôt que de pointer dans le vide
-    for (const g of attachedGroupsOf(r.id)) await detachGroup(g);
+    // Les groupes font partie de la section : ils disparaissent avec elle.
+    // Le contrôle des sièges vendus les couvre déjà, ils partagent son préfixe.
+    for (const g of attachedGroupsOf(r.id)) {
+      await adminApi.deleteSeatRow(g.id, props.venueId);
+      seatRows.value = seatRows.value.filter((x) => x.id !== g.id);
+    }
     await adminApi.deleteSeatRow(r.id, props.venueId);
     seatRows.value = seatRows.value.filter((x) => x.id !== r.id);
   } else if (selectedFreeZone.value) {
@@ -4330,7 +4358,17 @@ async function saveAll(opts = {}) {
           <input v-model="selectedSeatRow.entrance" @input="scheduleSave" placeholder="Ex: Entrée A, Porte Nord…"
             class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400" />
         </div>
-        <div class="flex items-center justify-between">
+
+        <!-- Réglages hérités de la section : les proposer ici laissait croire
+             qu'on peut les régler, alors qu'ils sont écrasés au prochain
+             enregistrement du bloc. -->
+        <p v-if="isAttachedGroup" class="text-[11px] text-gray-400 leading-snug border-l-2 border-gray-200 pl-2">
+          Catégorie, taille, forme et rotation suivent la section
+          <strong class="text-gray-500">{{ selectedSeatRow.section }}</strong>.
+          Seule la numérotation reste propre à ce groupe.
+        </p>
+
+        <div v-if="!isAttachedGroup" class="flex items-center justify-between">
           <label class="text-xs font-semibold text-gray-500">Afficher section</label>
           <button
             @click="selectedSeatRow.badgeVisible = !selectedSeatRow.badgeVisible; scheduleSave()"
@@ -4346,7 +4384,7 @@ async function saveAll(opts = {}) {
           <input v-model="selectedSeatRow.rowLabelFontSize" @input="scheduleSave" type="number" min="6" max="24"
             class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
         </div>
-        <div>
+        <div v-if="!isAttachedGroup">
           <label class="text-xs font-semibold text-gray-500">Catégorie</label>
           <select v-model="selectedSeatRow.categoryId" @change="scheduleSave"
             class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400">
@@ -4376,7 +4414,7 @@ async function saveAll(opts = {}) {
               Aligner toutes les rangées sur le bloc
             </button>
           </div>
-          <div>
+          <div v-if="!isAttachedGroup">
             <label class="text-xs font-semibold text-gray-500">Forme des sièges</label>
             <select v-model="selectedSeatRow.shape" @change="scheduleSave" class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm">
               <option value="square">Carré</option>
@@ -4384,14 +4422,14 @@ async function saveAll(opts = {}) {
               <option value="round">Rond</option>
             </select>
           </div>
-          <div>
+          <div v-if="!isAttachedGroup">
             <label class="text-xs font-semibold text-gray-500">Taille (px)</label>
             <input v-model="selectedSeatRow.seatSize" @input="scheduleSave" type="number" min="10" max="40"
               class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
           </div>
         </div>
 
-        <div>
+        <div v-if="!isAttachedGroup">
           <label class="text-xs font-semibold text-gray-500">Rotation (°)</label>
           <div class="flex items-center gap-2 mt-1">
             <input :value="selectedSeatRow.rotation || 0" @input="onSeatRowRotate(selectedSeatRow, $event.target.value)"
