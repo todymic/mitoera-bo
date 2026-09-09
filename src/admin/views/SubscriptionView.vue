@@ -121,9 +121,9 @@ function statusBadge(s) { return STATUS_LABELS[s] ?? { label: s, cls: 'bg-gray-1
 const currentPlanKey = computed(() => subscription.value?.plan ?? null);
 
 const PLAN_META = {
-  base: { price: null,  features: ['Sans abonnement fixe', '0,15 € / siège vendu', 'Facturation mensuelle', 'Idéal pour les événements ponctuels'] },
-  plus: { price: 300,   features: ['2 500 sièges / an inclus', 'Surplus : 0,15 € / siège', 'Facturation annuelle'] },
-  max:  { price: 575,   features: ['5 000 sièges / an inclus', 'Surplus : 0,15 € / siège', 'Facturation annuelle', 'Support prioritaire'] },
+  base: { price: null,   features: ['Sans abonnement fixe', '0,15 € / siège vendu', 'Facturation mensuelle', 'Idéal pour les événements ponctuels'] },
+  plus: { price: 300,   features: ['2 500 sièges / an inclus', 'Surplus : 0,12 € / siège', 'Facturation annuelle'] },
+  pro:  { price: 5000,  features: ['50 000 sièges / an inclus', 'Surplus : 0,10 € / siège', 'Facturation annuelle', 'Support prioritaire'] },
 };
 
 const planList = computed(() =>
