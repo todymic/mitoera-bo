@@ -76,24 +76,24 @@ async function submitLogin() {
   try {
     await auth.login(loginEmail.value, loginPassword.value);
 
-    // Si un plan est en attente, lancer le checkout
+    // Si un plan est en attente, lancer le checkout (sauf Base = pay-per-use)
     const plan = pendingPlan.value || localStorage.getItem('pendingPlan');
-    if (plan) {
-      localStorage.removeItem('pendingPlan');
+    localStorage.removeItem('pendingPlan');
+    if (plan && !PLAN_PAY_PER_USE.includes(plan)) {
       const res = await fetch('/api/billing/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token()}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.getToken()}` },
         body: JSON.stringify({
           planKey:    plan,
-          successUrl: window.location.origin + '/billing?success=1',
-          cancelUrl:  window.location.origin + '/billing',
+          successUrl: window.location.origin + '/subscription?success=1',
+          cancelUrl:  window.location.origin + '/subscription',
         }),
       });
       const data = await res.json();
       if (res.ok && data.url) { window.location.href = data.url; return; }
     }
 
-    router.push({ name: 'home' });
+    router.push(plan ? { name: 'subscription' } : { name: 'home' });
   } catch (e) {
     error.value = e.message;
   } finally {
