@@ -78,7 +78,6 @@ async function submitLogin() {
 
     // Si un plan est en attente, lancer le checkout (sauf Base = pay-per-use)
     const plan = pendingPlan.value || localStorage.getItem('pendingPlan');
-    localStorage.removeItem('pendingPlan');
     if (plan && !PLAN_PAY_PER_USE.includes(plan)) {
       const res = await fetch('/api/billing/checkout', {
         method: 'POST',
@@ -90,9 +89,14 @@ async function submitLogin() {
         }),
       });
       const data = await res.json();
-      if (res.ok && data.url) { window.location.href = data.url; return; }
+      if (res.ok && data.url) {
+        localStorage.removeItem('pendingPlan');
+        window.location.href = data.url;
+        return;
+      }
     }
 
+    localStorage.removeItem('pendingPlan');
     router.push(plan ? { name: 'subscription' } : { name: 'home' });
   } catch (e) {
     error.value = e.message;
