@@ -36,7 +36,6 @@ const loading = ref(false);
 const showPassword = ref(false);
 
 const PLAN_LABELS = { base: 'Base', plus: 'Plus', pro: 'Pro' };
-const PLAN_PAY_PER_USE = ['base'];
 
 onMounted(() => {
   // Lire le mode depuis l'URL (?mode=register)
@@ -76,9 +75,9 @@ async function submitLogin() {
   try {
     await auth.login(loginEmail.value, loginPassword.value);
 
-    // Si un plan est en attente, lancer le checkout (sauf Base = pay-per-use)
+    // Si un plan est en attente, lancer le checkout Stripe (Base = setup carte, Plus/Pro = subscription)
     const plan = pendingPlan.value || localStorage.getItem('pendingPlan');
-    if (plan && !PLAN_PAY_PER_USE.includes(plan)) {
+    if (plan) {
       const res = await fetch('/api/billing/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.getToken()}` },
@@ -206,11 +205,8 @@ function go(m) { clearMessages(); mode.value = m; }
       <!-- Register -->
       <template v-if="mode === 'register'">
         <h1 class="text-xl font-bold text-gray-800 mb-1 text-center">Créer un compte</h1>
-        <p v-if="pendingPlan && PLAN_PAY_PER_USE.includes(pendingPlan)" class="text-xs text-center mb-4 px-3 py-2 rounded-lg bg-orange-50 text-orange-700 font-medium">
-          Plan sélectionné : <strong>{{ PLAN_LABELS[pendingPlan] ?? pendingPlan }}</strong> — facturation mensuelle à l'usage, aucun paiement immédiat.
-        </p>
-        <p v-else-if="pendingPlan" class="text-xs text-center mb-4 px-3 py-2 rounded-lg bg-orange-50 text-orange-700 font-medium">
-          Plan sélectionné : <strong>{{ PLAN_LABELS[pendingPlan] ?? pendingPlan }}</strong> — vous serez redirigé vers le paiement après connexion.
+        <p v-if="pendingPlan" class="text-xs text-center mb-4 px-3 py-2 rounded-lg bg-orange-50 text-orange-700 font-medium">
+          Plan sélectionné : <strong>{{ PLAN_LABELS[pendingPlan] ?? pendingPlan }}</strong> — vous serez redirigé vers Stripe pour enregistrer votre carte.
         </p>
         <p v-else class="text-xs text-gray-400 mb-6 text-center">Créez votre compte Mitoera</p>
 
