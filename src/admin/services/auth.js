@@ -13,7 +13,9 @@ export const apiMode = ref(currentMode());
 function isTokenValid(token) {
   if (!token) return false;
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    // JWT uses base64url (- and _ instead of + and /); atob requires standard base64
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(b64));
     return payload.exp * 1000 > Date.now();
   } catch {
     return false;
