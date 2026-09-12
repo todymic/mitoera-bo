@@ -107,7 +107,8 @@ async function openPortal() {
 
 function fmtDate(ts) {
   if (!ts) return '—';
-  return new Date(ts * 1000).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const d = typeof ts === 'number' ? new Date(ts * 1000) : new Date(ts);
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 const STATUS_LABELS = {
@@ -168,7 +169,7 @@ const planList = computed(() =>
           <p class="text-sm text-gray-500 mt-1">
             {{ subscription.seats?.toLocaleString('fr-FR') }} sièges / mois
             <template v-if="subscription.plan !== 'base'">
-              · Renouvellement le {{ fmtDate(subscription.currentPeriodEnd) }}
+              · Renouvellement le {{ fmtDate(subscription.periodEnd) }}
             </template>
           </p>
           <p v-if="subscription.cancelAtPeriodEnd" class="text-sm text-amber-600 mt-1 font-medium">
