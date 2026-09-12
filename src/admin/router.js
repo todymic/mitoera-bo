@@ -19,11 +19,13 @@ const TeamView       = () => import('./views/TeamView.vue');
 const LoginView           = () => import('./components/LoginView.vue');
 const AcceptInvitationView = () => import('./views/AcceptInvitationView.vue');
 const DocsView            = () => import('./views/DocsView.vue');
+const EmailVerifiedView   = () => import('./views/EmailVerifiedView.vue');
 
 const routes = [
-  { path: '/login',              name: 'login',             component: LoginView,           meta: { public: true } },
+  { path: '/login',           name: 'login',           component: LoginView,           meta: { public: true } },
+  { path: '/email-verified',  name: 'email-verified',  component: EmailVerifiedView,   meta: { public: true } },
   { path: '/accept-invitation', name: 'accept-invitation', component: AcceptInvitationView, meta: { public: true } },
-  { path: '/docs',              name: 'docs',              component: DocsView,             meta: { public: true } },
+  { path: '/docs',            name: 'docs',            component: DocsView,            meta: { public: true } },
   { path: '/',              name: 'home',         component: HomeView },
   { path: '/plans',         name: 'plans',        component: PlansView },
   { path: '/plans/:id',     name: 'plan-editor',  component: EditorView },
@@ -51,8 +53,7 @@ router.beforeEach((to) => {
   if (!to.meta.public && !auth.isLoggedIn()) {
     return { name: 'login' };
   }
-  // Ne pas rediriger vers home si on arrive avec ?verified=1 (flow email verification)
-  if (to.name === 'login' && auth.isLoggedIn() && !to.query.verified) {
+  if (to.name === 'login' && auth.isLoggedIn()) {
     return { name: 'home' };
   }
   // Billing, Usage, Équipe ne sont pas disponibles en sandbox

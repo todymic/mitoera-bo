@@ -120,11 +120,11 @@ async function submitRegister() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? 'Erreur lors de l\'inscription');
 
-    // Envoyer l'email de vérification
+    // Envoyer l'email de vérification (avec le plan en attente pour l'inclure dans le lien)
     await fetch('/api/auth/resend-verification', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: regEmail.value }),
+      body: JSON.stringify({ email: regEmail.value, plan: pendingPlan.value || localStorage.getItem('pendingPlan') || undefined }),
     });
 
     message.value = `Compte créé ! Un email de vérification a été envoyé à ${regEmail.value}. Vérifiez votre boîte mail avant de vous connecter.`;
