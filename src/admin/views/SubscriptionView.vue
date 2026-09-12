@@ -155,7 +155,9 @@ const planList = computed(() =>
     <div v-if="!subLoading && subscription" class="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
       <div class="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <p class="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">Abonnement actuel</p>
+          <p class="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">
+            {{ subscription.plan === 'base' ? 'Mode actuel' : 'Abonnement actuel' }}
+          </p>
           <div class="flex items-center gap-3">
             <span class="text-xl font-bold text-gray-900">{{ subscription.planLabel }}</span>
             <span :class="statusBadge(subscription.status).cls"
@@ -165,7 +167,9 @@ const planList = computed(() =>
           </div>
           <p class="text-sm text-gray-500 mt-1">
             {{ subscription.seats?.toLocaleString('fr-FR') }} sièges / mois
-            · Renouvellement le {{ fmtDate(subscription.currentPeriodEnd) }}
+            <template v-if="subscription.plan !== 'base'">
+              · Renouvellement le {{ fmtDate(subscription.currentPeriodEnd) }}
+            </template>
           </p>
           <p v-if="subscription.cancelAtPeriodEnd" class="text-sm text-amber-600 mt-1 font-medium">
             ⚠ Annulation programmée en fin de période
