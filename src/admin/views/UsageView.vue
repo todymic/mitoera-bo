@@ -10,6 +10,8 @@ const byEvent       = ref([]);
 const seatList      = ref([]);
 const seatListEvent = ref(null); // { eventId, eventTitle }
 const seatListLoading = ref(false);
+const subscription  = ref(null);
+const usage         = ref(null);
 
 const now          = new Date();
 const selectedYear = ref(now.getFullYear());
@@ -36,12 +38,15 @@ async function loadAll() {
   loading.value = true;
   error.value = '';
   try {
-    const [m, e] = await Promise.all([
+    const [m, e, sub] = await Promise.all([
       api('/api/reporting/seats/monthly'),
       api(`/api/reporting/seats/by-event?year=${selectedYear.value}${selectedMonth.value ? `&month=${selectedMonth.value}` : ''}`),
+      api('/api/billing/subscription'),
     ]);
-    monthly.value = m.data;
-    byEvent.value = e.data;
+    monthly.value      = m.data;
+    byEvent.value      = e.data;
+    subscription.value = sub.subscription;
+    usage.value        = sub.usage;
   } catch (err) {
     error.value = err.message;
   } finally {
@@ -134,6 +139,29 @@ function selectBar(row) {
     </template>
 
     <template v-else>
+
+      <!-- ── Quota restant (Plus / Pro) ────────────────────────────────── -->
+      <div v-if="subscription && subscription.plan !== 'base'" class="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+        <p class="text-xs text-gray-500 uppercase tracking-wide font-medium mb-3">Quota annuel</p>
+        <div class="flex items-end gap-3 mb-3">
+          <span class="text-3xl font-extrabold text-gray-900">
+            {{ (subscription.annualSeatQuota - (usage?.seatsUsedCumul ?? 0)).toLocaleString('fr-FR') }}
+          </span>
+          <span class="text-sm text-gray-500 mb-1">
+            sièges restants sur {{ subscription.annualSeatQuota.toLocaleString('fr-FR') }}
+          </span>
+        </div>
+        <div class="w-full bg-gray-100 rounded-full h-2">
+          <div class="bg-indigo-500 h-2 rounded-full transition-all"
+            :style="{ width: `${Math.min((usage?.seatsUsedCumul ?? 0) / subscription.annualSeatQuota * 100, 100)}%` }" />
+        </div>
+        <p class="text-xs text-gray-400 mt-2">
+          {{ (usage?.seatsUsedCumul ?? 0).toLocaleString('fr-FR') }} utilisés
+          <span v-if="(usage?.surplusTotal ?? 0) > 0" class="text-amber-600 font-medium">
+            · {{ usage.surplusTotal.toLocaleString('fr-FR') }} en surplus
+          </span>
+        </p>
+      </div>
 
       <!-- ── Chart card ─────────────────────────────────────────────────── -->
       <div class="bg-white rounded-2xl border border-gray-200 p-6 mb-6">

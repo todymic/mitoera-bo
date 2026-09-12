@@ -170,7 +170,7 @@ const planList = computed(() =>
           </div>
           <p class="text-sm text-gray-500 mt-1">
             <template v-if="subscription.plan !== 'base'">
-              {{ usage?.seatsUsedCumul?.toLocaleString('fr-FR') ?? '0' }} / {{ subscription.annualSeatQuota?.toLocaleString('fr-FR') }} sièges / an
+              {{ subscription.annualSeatQuota?.toLocaleString('fr-FR') }} sièges / an
               · Renouvellement le {{ fmtDate(subscription.periodEnd) }}
             </template>
           </p>
