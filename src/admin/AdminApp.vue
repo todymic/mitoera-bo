@@ -296,7 +296,7 @@ const navItems = computed(() =>
 
       <!-- Sidebar -->
       <aside class="w-14 md:w-40 lg:w-48 shrink-0 bg-gray-900 text-gray-300 flex flex-col py-4">
-        <nav class="flex flex-col gap-1 px-1.5">
+        <nav class="flex flex-col gap-1 px-1.5 flex-1">
           <router-link
             v-for="item in navItems"
             :key="item.to"
@@ -309,6 +309,18 @@ const navItems = computed(() =>
             <span class="hidden md:block truncate">{{ item.label }}</span>
           </router-link>
         </nav>
+        <div class="px-1.5 mt-2 border-t border-gray-700 pt-2">
+          <a href="https://docs.mitoera.com/docs" target="_blank" rel="noopener"
+            class="flex items-center gap-2.5 px-2 py-2.5 rounded-lg text-sm transition w-full hover:bg-gray-800 text-gray-400"
+            title="Documentation">
+            <span class="shrink-0 w-5 h-5 flex items-center justify-center">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+              </svg>
+            </span>
+            <span class="hidden md:block truncate">Documentation</span>
+          </a>
+        </div>
       </aside>
 
       <!-- Main content -->
